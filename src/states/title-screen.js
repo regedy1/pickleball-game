@@ -8,8 +8,8 @@ import { drawText, drawTextCentered } from '../font.js';
 import { isPressed } from '../input.js';
 import { playSFX, playBGM, initAudio } from '../audio.js';
 
-const MENU_ITEMS = ['NEW GAME', 'HOW TO PLAY', 'SETTINGS'];
-let selectedIndex = 0;
+const TITLE_MENU = ['NEW GAME', 'HOW TO PLAY', 'SETTINGS'];
+let titleSel = 0;
 let animTimer = 0;
 let ballX = 0;
 let ballY = 0;
@@ -19,7 +19,7 @@ let firstInteraction = false;
 
 export const TitleScreen = {
   enter(gameCtx) {
-    selectedIndex = 0;
+    titleSel = 0;
     animTimer = 0;
     ballX = 80;
     ballY = 140;
@@ -39,19 +39,19 @@ export const TitleScreen = {
 
     // Menu navigation
     if (isPressed('ArrowDown') || isPressed('s')) {
-      selectedIndex = (selectedIndex + 1) % MENU_ITEMS.length;
+      titleSel = (titleSel + 1) % TITLE_MENU.length;
       handleFirstInteraction();
       playSFX('menuMove');
     }
     if (isPressed('ArrowUp') || isPressed('w')) {
-      selectedIndex = (selectedIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
+      titleSel = (titleSel - 1 + TITLE_MENU.length) % TITLE_MENU.length;
       handleFirstInteraction();
       playSFX('menuMove');
     }
     if (isPressed('Enter') || isPressed(' ')) {
       handleFirstInteraction();
       playSFX('menuSelect');
-      switch (selectedIndex) {
+      switch (titleSel) {
         case 0:
           gameCtx.stateMachine.transition(GameState.MODE_SELECT);
           break;
@@ -100,7 +100,7 @@ export const TitleScreen = {
     // Menu
     const menuX = INTERNAL_WIDTH / 2 - 50;
     const menuY = 210;
-    drawMenu(ctx, MENU_ITEMS, selectedIndex, menuX, menuY, PALETTE.WHITE, PALETTE.YELLOW, 1);
+    drawMenu(ctx, TITLE_MENU, titleSel, menuX, menuY, PALETTE.WHITE, PALETTE.YELLOW, 1);
 
     // Footer
     drawTextCentered(ctx, 'PRESS ENTER TO SELECT', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);

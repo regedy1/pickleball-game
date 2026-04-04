@@ -9,18 +9,18 @@ import { isPressed } from '../input.js';
 import { playSFX } from '../audio.js';
 import { checkMatchOver } from '../rules.js';
 
-let timer = 0;
-let winner = null;
+let gameEndTimer = 0;
+let gameEndWinner = null;
 
 export const GameEnd = {
   enter(gameCtx) {
-    timer = 0;
-    winner = gameCtx.gameWinner;
-    if (!winner) return;
+    gameEndTimer = 0;
+    gameEndWinner = gameCtx.gameWinner;
+    if (!gameEndWinner) return;
     gameCtx.gameWinner = null; // clear to prevent double-count on re-entry
 
     // Record game win
-    if (winner === 'player') {
+    if (gameEndWinner === 'player') {
       gameCtx.score.games[0]++;
       playSFX('win');
     } else {
@@ -30,8 +30,8 @@ export const GameEnd = {
   },
 
   update(dt, gameCtx) {
-    timer += dt;
-    if (timer < 1) return; // show for at least 1 second
+    gameEndTimer += dt;
+    if (gameEndTimer < 1) return; // show for at least 1 second
 
     if (isPressed('Enter') || isPressed(' ')) {
       // Check match over
@@ -51,7 +51,7 @@ export const GameEnd = {
   render(ctx, gameCtx) {
     clearScreen(ctx, PALETTE.BLACK);
 
-    const isPlayer = winner === 'player';
+    const isPlayer = gameEndWinner === 'player';
 
     drawTextCentered(ctx, 'GAME OVER', INTERNAL_WIDTH / 2, 60, PALETTE.YELLOW, 3);
 
@@ -70,7 +70,7 @@ export const GameEnd = {
     drawTextCentered(ctx, `BEST OF ${SCORING.BEST_OF}`,
       INTERNAL_WIDTH / 2, 190, PALETTE.GRAY, 1);
 
-    if (timer > 1) {
+    if (gameEndTimer > 1) {
       drawTextCentered(ctx, 'PRESS ENTER TO CONTINUE', INTERNAL_WIDTH / 2, 230, PALETTE.YELLOW, 1);
     }
   },

@@ -8,12 +8,12 @@ import { drawMenu } from '../renderer.js';
 import { isPressed } from '../input.js';
 import { playSFX } from '../audio.js';
 
-const MENU_ITEMS = ['RESUME', 'MAIN MENU'];
-let selectedIndex = 0;
+const PAUSE_MENU = ['RESUME', 'MAIN MENU'];
+let pauseSel = 0;
 
 export const Paused = {
   enter(gameCtx) {
-    selectedIndex = 0;
+    pauseSel = 0;
   },
 
   update(dt, gameCtx) {
@@ -22,12 +22,12 @@ export const Paused = {
       return;
     }
 
-    if (isPressed('ArrowDown')) { selectedIndex = (selectedIndex + 1) % MENU_ITEMS.length; playSFX('menuMove'); }
-    if (isPressed('ArrowUp'))   { selectedIndex = (selectedIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length; playSFX('menuMove'); }
+    if (isPressed('ArrowDown')) { pauseSel = (pauseSel + 1) % PAUSE_MENU.length; playSFX('menuMove'); }
+    if (isPressed('ArrowUp'))   { pauseSel = (pauseSel - 1 + PAUSE_MENU.length) % PAUSE_MENU.length; playSFX('menuMove'); }
 
     if (isPressed('Enter') || isPressed(' ')) {
       playSFX('menuSelect');
-      if (selectedIndex === 0) {
+      if (pauseSel === 0) {
         gameCtx.stateMachine.transition(GameState.GAMEPLAY);
       } else {
         gameCtx.score.player = 0;
@@ -45,7 +45,7 @@ export const Paused = {
 
     drawTextCentered(ctx, 'PAUSED', INTERNAL_WIDTH / 2, 50, PALETTE.YELLOW, 3);
 
-    drawMenu(ctx, MENU_ITEMS, selectedIndex, INTERNAL_WIDTH / 2 - 40, 90, PALETTE.WHITE, PALETTE.YELLOW, 1);
+    drawMenu(ctx, PAUSE_MENU, pauseSel, INTERNAL_WIDTH / 2 - 40, 90, PALETTE.WHITE, PALETTE.YELLOW, 1);
 
     drawTextCentered(ctx, 'ESC TO RESUME', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },

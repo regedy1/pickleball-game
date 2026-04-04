@@ -16,24 +16,24 @@ const MODES = [
   { mode: GameMode.MIXED_DOUBLES,  label: "MIXED DOUBLES",   type: '2V2', available: false },
 ];
 
-let selectedIndex = 0;
+let modeSel = 0;
 
 export const ModeSelect = {
   enter(gameCtx) {
-    selectedIndex = 0;
+    modeSel = 0;
   },
 
   update(dt, gameCtx) {
     if (isPressed('ArrowDown') || isPressed('s')) {
-      selectedIndex = (selectedIndex + 1) % MODES.length;
+      modeSel = (modeSel + 1) % MODES.length;
       playSFX('menuMove');
     }
     if (isPressed('ArrowUp') || isPressed('w')) {
-      selectedIndex = (selectedIndex - 1 + MODES.length) % MODES.length;
+      modeSel = (modeSel - 1 + MODES.length) % MODES.length;
       playSFX('menuMove');
     }
     if (isPressed('Enter') || isPressed(' ')) {
-      const selected = MODES[selectedIndex];
+      const selected = MODES[modeSel];
       if (selected.available) {
         playSFX('menuSelect');
         gameCtx.gameMode = selected.mode;
@@ -57,7 +57,7 @@ export const ModeSelect = {
 
     for (let i = 0; i < MODES.length; i++) {
       const m = MODES[i];
-      const isSelected = i === selectedIndex;
+      const isSelected = i === modeSel;
       const y = startY + i * lineH;
 
       if (isSelected) {

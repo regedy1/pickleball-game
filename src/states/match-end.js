@@ -8,15 +8,15 @@ import { drawTextCentered } from '../font.js';
 import { isPressed } from '../input.js';
 import { playSFX } from '../audio.js';
 
-const MENU_ITEMS = ['REMATCH', 'MAIN MENU'];
-let selectedIndex = 0;
-let timer = 0;
+const MATCHEND_MENU = ['REMATCH', 'MAIN MENU'];
+let matchEndSel = 0;
+let matchEndTimer = 0;
 let matchWinnerLocal = null;
 
 export const MatchEnd = {
   enter(gameCtx) {
-    selectedIndex = 0;
-    timer = 0;
+    matchEndSel = 0;
+    matchEndTimer = 0;
     matchWinnerLocal = gameCtx.matchWinner;
     gameCtx.matchWinner = null; // clear to prevent stale state
     if (matchWinnerLocal === 'player') {
@@ -25,14 +25,14 @@ export const MatchEnd = {
   },
 
   update(dt, gameCtx) {
-    timer += dt;
+    matchEndTimer += dt;
 
-    if (isPressed('ArrowDown')) { selectedIndex = (selectedIndex + 1) % MENU_ITEMS.length; playSFX('menuMove'); }
-    if (isPressed('ArrowUp'))   { selectedIndex = (selectedIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length; playSFX('menuMove'); }
+    if (isPressed('ArrowDown')) { matchEndSel = (matchEndSel + 1) % MATCHEND_MENU.length; playSFX('menuMove'); }
+    if (isPressed('ArrowUp'))   { matchEndSel = (matchEndSel - 1 + MATCHEND_MENU.length) % MATCHEND_MENU.length; playSFX('menuMove'); }
 
     if (isPressed('Enter') || isPressed(' ')) {
       playSFX('menuSelect');
-      if (selectedIndex === 0) {
+      if (matchEndSel === 0) {
         // Rematch — reset everything
         gameCtx.score.player = 0;
         gameCtx.score.opponent = 0;
@@ -66,7 +66,7 @@ export const MatchEnd = {
       INTERNAL_WIDTH / 2, 155, PALETTE.LIGHT_GRAY, 1);
 
     // Menu
-    drawMenu(ctx, MENU_ITEMS, selectedIndex, INTERNAL_WIDTH / 2 - 40, 190, PALETTE.WHITE, PALETTE.YELLOW, 1);
+    drawMenu(ctx, MATCHEND_MENU, matchEndSel, INTERNAL_WIDTH / 2 - 40, 190, PALETTE.WHITE, PALETTE.YELLOW, 1);
 
     drawTextCentered(ctx, 'PRESS ENTER TO SELECT', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
