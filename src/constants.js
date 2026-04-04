@@ -165,11 +165,16 @@ export const SCORING = {
   BEST_OF: 3,
 };
 
-// Avatars
+// Avatars — M=male, F=female
 export const AVATARS = [
-  { name: 'Ace',    color: PALETTE.LIGHT_BLUE },
-  { name: 'Blaze',  color: PALETTE.ORANGE },
-  { name: 'Spike',  color: PALETTE.YELLOW },
-  { name: 'Dash',   color: PALETTE.RED },
-  { name: 'Zen',    color: PALETTE.COURT_GREEN },
+  { name: 'Ace',      color: PALETTE.LIGHT_BLUE,  gender: 'male' },
+  { name: 'Blaze',    color: PALETTE.ORANGE,       gender: 'male' },
+  { name: 'Spike',    color: PALETTE.YELLOW,        gender: 'male' },
+  { name: 'Dash',     color: PALETTE.RED,            gender: 'male' },
+  { name: 'Zen',      color: PALETTE.COURT_GREEN,   gender: 'male' },
+  { name: 'Luna',     color: '#e879a8',              gender: 'female' },
+  { name: 'Nova',     color: '#9b59b6',              gender: 'female' },
+  { name: 'Ivy',      color: '#2ecc71',              gender: 'female' },
+  { name: 'Ruby',     color: '#e74c3c',              gender: 'female' },
+  { name: 'Sky',      color: '#5dade2',              gender: 'female' },
 ];

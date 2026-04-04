@@ -29,6 +29,7 @@ export const PlayerSetup = {
     gameCtx.player.name = name || 'PLAYER';
     gameCtx.player.dupr = dupr;
     gameCtx.player.avatar = avatarIndex;
+    gameCtx.player.gender = AVATARS[avatarIndex].gender || 'male';
     // Set AI DUPR to match (+/- variation)
     gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, dupr + (Math.random() - 0.5)));
   },
@@ -52,8 +53,11 @@ export const PlayerSetup = {
         handleNameInput();
         break;
       case 'DUPR':
-        if (isPressed('ArrowRight')) { dupr = Math.min(8.0, Math.round((dupr + 0.1) * 10) / 10); playSFX('menuMove'); }
-        if (isPressed('ArrowLeft'))  { dupr = Math.max(1.0, Math.round((dupr - 0.1) * 10) / 10); playSFX('menuMove'); }
+        {
+          const step = isDown('Shift') ? 0.5 : 0.1; // Shift = jump by tier
+          if (isPressed('ArrowRight')) { dupr = Math.min(8.0, Math.round((dupr + step) * 10) / 10); playSFX('menuMove'); }
+          if (isPressed('ArrowLeft'))  { dupr = Math.max(1.0, Math.round((dupr - step) * 10) / 10); playSFX('menuMove'); }
+        }
         break;
       case 'AVATAR':
         if (isPressed('ArrowRight')) { avatarIndex = (avatarIndex + 1) % AVATARS.length; playSFX('menuMove'); }
@@ -111,7 +115,9 @@ export const PlayerSetup = {
     // Avatar field
     const avatarActive = fieldIndex === 2;
     drawText(ctx, 'AVATAR:', 30, startY + lineH * 2 + 8, avatarActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    drawText(ctx, `< ${AVATARS[avatarIndex].name} >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
+    const av = AVATARS[avatarIndex];
+    const gLabel = av.gender === 'female' ? 'F' : 'M';
+    drawText(ctx, `< ${av.name} (${gLabel}) >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
 
     // Avatar preview
     drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, avatarIndex, 'down', 'idle', 0);

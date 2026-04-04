@@ -572,6 +572,14 @@ function performAIServe(opponent) {
 // SCORING
 // ============================================================
 
+// Emotional point messages
+const WINNER_MSGS = ['NICE!', 'GREAT SHOT!', 'BEAUTIFUL!', 'INCREDIBLE!', 'ON FIRE!', 'UNSTOPPABLE!', 'WHAT A PLAY!'];
+const LOSER_MSGS = ['OUCH!', 'SO CLOSE!', 'TOUGH BREAK!', 'UNLUCKY!', 'SHAKE IT OFF!'];
+const SIDE_OUT_MSGS = ['SIDE OUT!', 'YOUR SERVE!', 'CHANGE OF SERVE!', 'SWITCH!'];
+const EPIC_RALLY = ['EPIC RALLY!', 'WHAT A BATTLE!', 'INCREDIBLE POINT!'];
+
+function getEmotionalMsg(msgs) { return msgs[Math.floor(Math.random() * msgs.length)]; }
+
 function triggerFault(reason, against, gameCtx) {
   rules.lastFault = against;
   rules.lastFaultReason = reason;
@@ -582,13 +590,27 @@ function triggerFault(reason, against, gameCtx) {
   scorePoint(gameCtx.score, rules, pointWinner);
 
   if (pointWinner === wasServing) {
-    faultDisplay = reason; playSFX('point');
+    // Server scored — emotional message
+    if (pointWinner === 'player') {
+      faultDisplay = getEmotionalMsg(WINNER_MSGS);
+    } else {
+      faultDisplay = getEmotionalMsg(LOSER_MSGS);
+    }
+    playSFX('point');
   } else {
-    faultDisplay = 'SIDE OUT'; playSFX('fault');
+    // Side out
+    faultDisplay = getEmotionalMsg(SIDE_OUT_MSGS);
+    playSFX('fault');
   }
   faultTimer = 1.5;
 
-  if (rallyCount > 5) { lastShotFeedback = `${rallyCount} SHOT RALLY!`; feedbackTimer = 2; }
+  if (rallyCount > 8) {
+    lastShotFeedback = `${rallyCount} SHOTS! ${getEmotionalMsg(EPIC_RALLY)}`;
+    feedbackTimer = 2.5;
+  } else if (rallyCount > 5) {
+    lastShotFeedback = `${rallyCount} SHOT RALLY!`;
+    feedbackTimer = 2;
+  }
 
   const gameWinner = checkGameOver(gameCtx.score);
   if (gameWinner) { pendingGameEnd = { winner: gameWinner }; faultTimer = 1.0; }
