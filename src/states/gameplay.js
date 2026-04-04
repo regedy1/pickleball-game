@@ -178,17 +178,23 @@ export const Gameplay = {
         return;
       }
 
-      // --- Player shot (single SPACE button) ---
+      // --- Player shot ---
+      // SPACE: tap=soft, hold=hard (power bar)
+      // D: instant lob
       const ballOnPlayerSide = getBallSide(ball) === 'player';
       if (ball.lastHitBy !== 'player' && ballOnPlayerSide) {
-        // Track charge
+        // SPACE charge
         if (isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
           chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
         }
         if (isCharging && isReleased(KEYS.SMASH)) {
-          executePlayerShot(player, gameCtx);
+          executePlayerShot(player, gameCtx, false);
           isCharging = false; chargeTime = 0;
+        }
+        // D = instant lob
+        if (isPressed(KEYS.DINK)) {
+          executePlayerShot(player, gameCtx, true);
         }
       } else {
         isCharging = false; chargeTime = 0;
@@ -288,7 +294,7 @@ export const Gameplay = {
       drawTextCentered(ctx, hintText, INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 30, PALETTE.LIGHT_BLUE, 1);
     }
 
-    drawText(ctx, 'SPACE: TAP=SOFT HOLD=HARD', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    drawText(ctx, 'SPACE:HIT(TAP=SOFT HOLD=HARD) D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
@@ -368,7 +374,7 @@ function getShotPreview(player) {
   const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
   const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
   const isHold = chargeTime > SOFT_THRESHOLD;
-  const isLob = isHold && isDown(KEYS.DOWN);
+  const isLob = false; // lob is now D key, not shown in preview
 
   if (isLob) return 'LOB';
   if (!isHold) {
@@ -382,7 +388,7 @@ function getShotPreview(player) {
   }
 }
 
-function executePlayerShot(player, gameCtx) {
+function executePlayerShot(player, gameCtx, forceLob = false) {
   const pcx = player.x + PLAYER.WIDTH / 2;
   const pcy = player.y + PLAYER.HEIGHT / 2;
   const dist = Math.sqrt(Math.pow(pcx - ball.x, 2) + Math.pow(pcy - ball.y, 2));
@@ -402,7 +408,7 @@ function executePlayerShot(player, gameCtx) {
   const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
   const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
   const isTap = chargeTime <= SOFT_THRESHOLD;
-  const isLob = !isTap && isDown(KEYS.DOWN);
+  const isLob = forceLob;
   const power = Math.min(chargeTime / MAX_CHARGE, 1.0);
 
   let flightTime, arcMult, label;
@@ -496,10 +502,6 @@ function drawPowerBar(ctx, player) {
 
   if (fill > 0.7) drawText(ctx, 'MAX!', barX + barW + 3, py - 1, PALETTE.RED, 1);
 
-  // Show LOB indicator if holding DOWN
-  if (isDown(KEYS.DOWN)) {
-    drawText(ctx, 'LOB', barX + barW + 3, py - 1, PALETTE.LIGHT_BLUE, 1);
-  }
 }
 
 function showFeedback(text) { lastShotFeedback = text; feedbackTimer = 0.6; }
