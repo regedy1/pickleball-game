@@ -16,30 +16,33 @@ export const HowToPlay = {
     clearScreen(ctx, PALETTE.DARK_BLUE);
     drawTextCentered(ctx, 'HOW TO PLAY', INTERNAL_WIDTH / 2, 15, PALETTE.YELLOW, 2);
 
-    const x = 40; let y = 50; const lh = 12;
+    const x = 40; let y = 45; const lh = 11;
 
-    drawText(ctx, 'ONE BUTTON CONTROLS:', x, y, PALETTE.ORANGE, 1);      y += lh + 2;
-    drawText(ctx, '  ARROWS - MOVE + AIM', x, y, PALETTE.WHITE, 1);      y += lh;
-    drawText(ctx, '  SPACE TAP - SOFT SHOT', x, y, PALETTE.WHITE, 1);    y += lh;
-    drawText(ctx, '  SPACE HOLD - HARD SHOT', x, y, PALETTE.WHITE, 1);   y += lh;
-    drawText(ctx, '  D - LOB (HIGH ARC)', x, y, PALETTE.WHITE, 1);       y += lh + 4;
+    drawText(ctx, 'CONTROLS:', x, y, PALETTE.ORANGE, 1);                y += lh + 2;
+    drawText(ctx, '  ARROWS  - MOVE + AIM CROSSHAIR', x, y, PALETTE.WHITE, 1);     y += lh;
+    drawText(ctx, '  SPACE TAP   - SOFT SHOT', x, y, PALETTE.WHITE, 1);            y += lh;
+    drawText(ctx, '  SPACE HOLD  - DRIVE (POWER BAR)', x, y, PALETTE.WHITE, 1);    y += lh;
+    drawText(ctx, '  S TAP       - SMASH', x, y, PALETTE.YELLOW, 1);               y += lh;
+    drawText(ctx, '  S HOLD      - POWER SMASH', x, y, PALETTE.YELLOW, 1);         y += lh;
+    drawText(ctx, '  D           - LOB', x, y, PALETTE.WHITE, 1);                  y += lh + 4;
 
-    drawText(ctx, 'SHOTS BY POSITION:', x, y, PALETTE.ORANGE, 1);        y += lh + 2;
-    drawText(ctx, '  AT KITCHEN: TAP=DINK  HOLD=SMASH', x, y, PALETTE.LIGHT_BLUE, 1); y += lh;
-    drawText(ctx, '  MID COURT:  TAP=RESET HOLD=VOLLEY', x, y, PALETTE.LIGHT_BLUE, 1); y += lh;
-    drawText(ctx, '  BASELINE:   TAP=DROP  HOLD=DRIVE', x, y, PALETTE.LIGHT_BLUE, 1); y += lh + 4;
+    drawText(ctx, 'SOFT SHOTS BY POSITION:', x, y, PALETTE.ORANGE, 1);  y += lh + 2;
+    drawText(ctx, '  AT KITCHEN  - DINK (SOFT, OVER NET)', x, y, PALETTE.LIGHT_BLUE, 1);  y += lh;
+    drawText(ctx, '  MID COURT   - RESET (NEUTRAL)', x, y, PALETTE.LIGHT_BLUE, 1);        y += lh;
+    drawText(ctx, '  BASELINE    - DROP (ARC TO KITCHEN)', x, y, PALETTE.LIGHT_BLUE, 1);  y += lh + 4;
 
-    drawText(ctx, 'AIMING:', x, y, PALETTE.ORANGE, 1);                   y += lh + 2;
-    drawText(ctx, '  CROSSHAIR SHOWS WHERE BALL GOES', x, y, PALETTE.WHITE, 1); y += lh;
-    drawText(ctx, '  ARROWS MOVE CROSSHAIR ON COURT', x, y, PALETTE.WHITE, 1); y += lh + 4;
+    drawText(ctx, 'AIMING:', x, y, PALETTE.ORANGE, 1);                  y += lh + 2;
+    drawText(ctx, '  CROSSHAIR SHOWS WHERE BALL GOES', x, y, PALETTE.WHITE, 1);    y += lh;
+    drawText(ctx, '  ARROWS MOVE CROSSHAIR ON COURT', x, y, PALETTE.WHITE, 1);     y += lh + 4;
 
-    drawText(ctx, 'SERVE:', x, y, PALETTE.ORANGE, 1);                    y += lh + 2;
-    drawText(ctx, '  TAP SPACE = QUICK SERVE', x, y, PALETTE.WHITE, 1);  y += lh;
-    drawText(ctx, '  HOLD SPACE = POWER SERVE', x, y, PALETTE.WHITE, 1); y += lh + 4;
+    drawText(ctx, 'SERVE:', x, y, PALETTE.ORANGE, 1);                   y += lh + 2;
+    drawText(ctx, '  TAP SPACE   - QUICK SERVE', x, y, PALETTE.WHITE, 1);          y += lh;
+    drawText(ctx, '  HOLD SPACE  - POWER SERVE', x, y, PALETTE.WHITE, 1);          y += lh + 4;
 
-    drawText(ctx, 'RULES:', x, y, PALETTE.ORANGE, 1);                    y += lh + 2;
-    drawText(ctx, '  FIRST 2 HITS MUST BOUNCE', x, y, PALETTE.YELLOW, 1); y += lh;
-    drawText(ctx, '  ONLY SERVER SCORES POINTS', x, y, PALETTE.YELLOW, 1); y += lh;
+    drawText(ctx, 'RULES:', x, y, PALETTE.ORANGE, 1);                   y += lh + 2;
+    drawText(ctx, '  FIRST 2 HITS MUST BOUNCE', x, y, PALETTE.YELLOW, 1);          y += lh;
+    drawText(ctx, '  NO VOLLEY IN KITCHEN (NVZ)', x, y, PALETTE.YELLOW, 1);        y += lh;
+    drawText(ctx, '  ONLY SERVER SCORES POINTS', x, y, PALETTE.YELLOW, 1);         y += lh;
     drawText(ctx, '  PLAY TO 11, WIN BY 2', x, y, PALETTE.WHITE, 1);
 
     drawTextCentered(ctx, 'PRESS ESC TO GO BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 14, PALETTE.GRAY, 1);
