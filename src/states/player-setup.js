@@ -37,6 +37,13 @@ export const PlayerSetup = {
   update(dt, gameCtx) {
     cursorBlink += dt;
 
+    // ESC = back to mode select
+    if (isPressed('Escape')) {
+      playSFX('menuSelect');
+      gameCtx.stateMachine.transition(GameState.MODE_SELECT);
+      return;
+    }
+
     // Field navigation
     if (isPressed('ArrowDown') || isPressed('Tab')) {
       fieldIndex = (fieldIndex + 1) % FIELDS.length;
@@ -134,7 +141,7 @@ export const PlayerSetup = {
     }
 
     // Help text
-    drawTextCentered(ctx, 'UP/DOWN: SELECT  LEFT/RIGHT: CHANGE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    drawTextCentered(ctx, 'UP/DOWN: SELECT  LEFT/RIGHT: CHANGE  ESC: BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
