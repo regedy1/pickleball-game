@@ -83,9 +83,26 @@ export function onBallHit(rules, hitter) {
   return { fault: false };
 }
 
-export function checkKitchenVolley(ball, hitter, hitterY) {
-  // Disabled for now — kitchen volley detection was too aggressive
-  // TODO: re-enable with proper bounce tracking
+export function checkKitchenVolley(hitter, hitterY, bounceCount) {
+  // Kitchen/NVZ rule: you CANNOT volley while standing in the kitchen.
+  // Volleying = hitting the ball before it bounces on YOUR side.
+  // You CAN enter the kitchen and hit if the ball has bounced there.
+  //
+  // Player's kitchen: NET_Y to NET_Y + KITCHEN_DEPTH
+  // Opponent's kitchen: NET_Y - KITCHEN_DEPTH to NET_Y
+
+  const inKitchen = hitter === 'player'
+    ? hitterY >= COURT.NET_Y && hitterY <= COURT.NET_Y + COURT.KITCHEN_DEPTH
+    : hitterY >= COURT.NET_Y - COURT.KITCHEN_DEPTH && hitterY <= COURT.NET_Y;
+
+  if (!inKitchen) return { fault: false };
+
+  // In the kitchen — only a fault if the ball hasn't bounced on their side (volley)
+  if (bounceCount === 0) {
+    return { fault: true, reason: FaultReason.KITCHEN_VOLLEY, against: hitter };
+  }
+
+  // Ball bounced on their side — legal to hit from kitchen
   return { fault: false };
 }
 

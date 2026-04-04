@@ -125,11 +125,11 @@ function tryHitBall(ai, opponent, ball, tier, rules) {
   const whiffChance = tier.errorRate * 0.08;
   if (Math.random() < whiffChance) return null;
 
-  // Kitchen volley check — can't volley in kitchen
+  // Kitchen volley check — can't volley while in kitchen
   const aiCenterY = opponent.y + PLAYER.HEIGHT / 2;
   const inKitchen = aiCenterY >= COURT.NET_Y - COURT.KITCHEN_DEPTH && aiCenterY <= COURT.NET_Y;
-  if (inKitchen && !ball.bouncedInCourt) {
-    return null; // Don't volley in kitchen
+  if (inKitchen && rules.bounceCount.opponent === 0) {
+    return null; // In kitchen + ball hasn't bounced = would be a volley fault, so wait
   }
 
   // Target: player's side, well within bounds

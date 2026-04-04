@@ -128,36 +128,42 @@ export function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player
   ball.vz = vz;
 }
 
-export function hitBall(ball, targetX, targetY, flightTime, arcMult) {
-  // Ball ALWAYS lands at the target.
-  // flightTime = desired seconds in air (lower = faster, higher = slower/lobbier)
-  // arcMult = height multiplier (1.0 = normal, 2.0 = high lob)
-  // Horizontal speed is ALWAYS computed from actual flight time so ball lands on target.
+export function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = true) {
+  // Ball lands at the target. Speed determined by flight time.
+  // flightTime: seconds in air (0.3=smash, 0.7=drive, 1.6=lob)
+  // arcMult: height multiplier (1.0=flat, 2.5=lob)
+  // safeNet: true=guarantee net clearance (soft shots), false=flat & risky (hard shots)
 
   const dx = targetX - ball.x;
   const dy = targetY - ball.y;
   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
   const g = Math.abs(BALL.GRAVITY);
-  const ft = Math.max(flightTime, 0.3);
+  const ft = Math.max(flightTime, 0.2);
 
-  // Compute vz from desired flight time
+  // Base vz from desired flight time
   let vz = 0.5 * g * ft;
 
-  // Ensure net clearance
+  // Net clearance
   const crossesNet = (ball.y < COURT.NET_Y && targetY > COURT.NET_Y) ||
                      (ball.y > COURT.NET_Y && targetY < COURT.NET_Y);
   if (crossesNet) {
-    const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 10));
-    vz = Math.max(vz, minVz);
+    if (safeNet) {
+      // Soft shots: generous clearance — always clears net
+      const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 8));
+      vz = Math.max(vz, minVz);
+    } else {
+      // Hard shots: minimal clearance — barely clears, fast & flat
+      // Only boost if the ball would literally hit the net
+      const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 1));
+      vz = Math.max(vz, minVz);
+    }
   }
 
   // Apply arc multiplier
   vz *= Math.max(arcMult || 1.0, 1.0);
 
-  // ACTUAL flight time after all boosts (this is how long ball is in the air)
+  // Horizontal speed from actual flight time → ball lands at target
   const actualFT = 2 * vz / g;
-
-  // Horizontal speed computed from ACTUAL flight time → ball lands at target
   const hSpeed = dist / Math.max(actualFT, 0.1);
 
   ball.vx = (dx / dist) * hSpeed;

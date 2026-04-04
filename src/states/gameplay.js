@@ -32,7 +32,7 @@ let playerSwingTimer = 0, aiSwingTimer = 0;
 let chargeTime = 0;
 let isCharging = false;
 const MAX_CHARGE = 0.5; // seconds to reach max power
-const SOFT_THRESHOLD = 0.15; // hold < this = tap (soft shot)
+const SOFT_THRESHOLD = 0.25; // hold < 0.25s = tap (soft shot: dink/drop/reset)
 
 // Aim crosshair — follows movement direction
 let aimTarget = { x: 0, y: 0 };
@@ -179,22 +179,32 @@ export const Gameplay = {
       }
 
       // --- Player shot ---
-      // SPACE: tap=soft, hold=hard (power bar)
-      // D: instant lob
+      // SPACE: tap=soft (dink/drop/reset), hold=drive
+      // S: tap=smash, hold=power smash
+      // D: lob
       const ballOnPlayerSide = getBallSide(ball) === 'player';
       if (ball.lastHitBy !== 'player' && ballOnPlayerSide) {
-        // SPACE charge
+        // SPACE charge (soft/drive)
         if (isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
           chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
         }
         if (isCharging && isReleased(KEYS.SMASH)) {
-          executePlayerShot(player, gameCtx, false);
+          executePlayerShot(player, gameCtx, 'space');
+          isCharging = false; chargeTime = 0;
+        }
+        // S = smash (tap=smash, hold=power smash)
+        if (isDown(KEYS.POWER_SMASH)) {
+          if (!isCharging) { isCharging = true; chargeTime = 0; }
+          chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
+        }
+        if (isCharging && isReleased(KEYS.POWER_SMASH)) {
+          executePlayerShot(player, gameCtx, 'smash');
           isCharging = false; chargeTime = 0;
         }
         // D = instant lob
-        if (isPressed(KEYS.DINK)) {
-          executePlayerShot(player, gameCtx, true);
+        if (isPressed(KEYS.LOB)) {
+          executePlayerShot(player, gameCtx, 'lob');
         }
       } else {
         isCharging = false; chargeTime = 0;
@@ -240,6 +250,19 @@ export const Gameplay = {
       gameCtx.opponent.animFrame = aiSwingTimer > 0.15 ? 1 : 2;
     }
 
+    // Kitchen zone warning — highlight when player is in the kitchen
+    const playerCY = gameCtx.player.y + PLAYER.HEIGHT / 2;
+    const playerInKitchen = playerCY >= COURT.NET_Y && playerCY <= COURT.NET_Y + COURT.KITCHEN_DEPTH;
+    if (playerInKitchen && ball.active && !ball.landed) {
+      // Red tint over player's kitchen zone
+      ctx.fillStyle = 'rgba(230,57,70,0.15)';
+      ctx.fillRect(COURT.X, COURT.NET_Y, COURT.WIDTH, COURT.KITCHEN_DEPTH);
+      // Warning text
+      if (rules.bounceCount.player === 0) {
+        drawTextCentered(ctx, 'NO VOLLEY ZONE', COURT.CENTER_X, COURT.NET_Y + COURT.KITCHEN_DEPTH / 2 - 4, 'rgba(230,57,70,0.7)', 1);
+      }
+    }
+
     drawPlayer(ctx, gameCtx.opponent);
     drawPlayer(ctx, gameCtx.player);
     drawBall(ctx, ball);
@@ -256,9 +279,35 @@ export const Gameplay = {
 
     drawHUD(ctx, gameCtx);
 
-    // Serve prompt
-    if (servePrompt && rules.serveState === ServeState.WAITING && gameCtx.score.serving === 'player') {
-      drawTextCentered(ctx, 'SPACE TO SERVE (HOLD=POWER)', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 1);
+    // Serve indicators
+    if (rules.serveState === ServeState.WAITING) {
+      const isPlayerServing = gameCtx.score.serving === 'player';
+      const server = isPlayerServing ? gameCtx.player : gameCtx.opponent;
+      const sx = Math.floor(server.x + PLAYER.WIDTH / 2);
+      const sy = Math.floor(server.y);
+
+      // Bouncing ball above server's head
+      const bounce = Math.sin(Date.now() / 200) * 3;
+      ctx.fillStyle = PALETTE.BALL_YELLOW;
+      ctx.fillRect(sx - 2, sy - 14 + bounce, 5, 5);
+      ctx.fillRect(sx - 1, sy - 15 + bounce, 3, 1);
+      ctx.fillRect(sx - 1, sy - 9 + bounce, 3, 1);
+      // Small highlight
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(sx - 1, sy - 13 + bounce, 1, 1);
+
+      // Arrow pointing at server
+      ctx.fillStyle = PALETTE.YELLOW;
+      ctx.fillRect(sx - 1, sy - 20 + bounce, 3, 3);
+      ctx.fillRect(sx, sy - 17 + bounce, 1, 2);
+
+      // Banner text
+      if (isPlayerServing) {
+        drawTextCentered(ctx, 'YOUR SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 2);
+        drawTextCentered(ctx, 'HOLD SPACE TO SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 8, PALETTE.LIGHT_GRAY, 1);
+      } else {
+        drawTextCentered(ctx, 'OPPONENT SERVING', INTERNAL_WIDTH / 2, COURT.Y - 5, PALETTE.ORANGE, 1);
+      }
     }
 
     // Power bar
@@ -294,7 +343,7 @@ export const Gameplay = {
       drawTextCentered(ctx, hintText, INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 30, PALETTE.LIGHT_BLUE, 1);
     }
 
-    drawText(ctx, 'SPACE:HIT(TAP=SOFT HOLD=HARD) D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    drawText(ctx, 'SPACE:TAP=SOFT HOLD=DRIVE  S:SMASH  D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
@@ -370,29 +419,27 @@ function drawLandingMarker(ctx) {
 // ============================================================
 
 function getShotPreview(player) {
+  const isSmashKey = isDown(KEYS.POWER_SMASH);
+  const power = chargeTime / MAX_CHARGE;
+  if (isSmashKey) return power > 0.5 ? 'POWER SMASH!' : 'SMASH';
   const pcy = player.y + PLAYER.HEIGHT / 2;
-  const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
-  const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
-  const isHold = chargeTime > SOFT_THRESHOLD;
-  const isLob = false; // lob is now D key, not shown in preview
-
-  if (isLob) return 'LOB';
-  if (!isHold) {
-    if (inKitchen) return 'DINK';
-    if (atBaseline) return 'DROP';
+  const isTap = chargeTime <= SOFT_THRESHOLD;
+  if (isTap) {
+    if (pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15) return 'DINK';
+    if (pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40) return 'DROP';
     return 'RESET';
-  } else {
-    const power = chargeTime / MAX_CHARGE;
-    if (inKitchen && power > 0.5) return power > 0.7 ? 'SMASH!' : 'SPEED-UP';
-    return power > 0.7 ? 'POWER DRIVE!' : 'DRIVE';
   }
+  return power > 0.6 ? 'POWER DRIVE!' : 'DRIVE';
 }
 
-function executePlayerShot(player, gameCtx, forceLob = false) {
+function executePlayerShot(player, gameCtx, shotKey = 'space') {
   const pcx = player.x + PLAYER.WIDTH / 2;
   const pcy = player.y + PLAYER.HEIGHT / 2;
-  const dist = Math.sqrt(Math.pow(pcx - ball.x, 2) + Math.pow(pcy - ball.y, 2));
-  if (dist >= 42) return;
+
+  // Hit radius: player sprite is 24x36, so center-to-edge is ~18px
+  // Ball should be within 28px of player center (tight but fair)
+  const dist = Math.sqrt(Math.pow(pcx - ball.x - 3, 2) + Math.pow(pcy - ball.y - 3, 2));
+  if (dist >= 30) return; // too far
 
   // Double-bounce check
   const nextRally = rules.rallyCount + 1;
@@ -401,41 +448,54 @@ function executePlayerShot(player, gameCtx, forceLob = false) {
     return;
   }
 
+  // Kitchen volley check
+  const kitchenCheck = checkKitchenVolley('player', pcy, rules.bounceCount.player);
+  if (kitchenCheck.fault) {
+    showFeedback('KITCHEN FAULT!');
+    triggerFault(kitchenCheck.reason, 'player', gameCtx);
+    return;
+  }
+
   const hitResult = onBallHit(rules, 'player');
   if (hitResult.fault) { triggerFault(hitResult.reason, 'player', gameCtx); return; }
 
-  // Determine shot type
   const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
   const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
-  const isTap = chargeTime <= SOFT_THRESHOLD;
-  const isLob = forceLob;
   const power = Math.min(chargeTime / MAX_CHARGE, 1.0);
+  const isTap = chargeTime <= SOFT_THRESHOLD;
 
-  let flightTime, arcMult, label;
+  let flightTime, arcMult, label, safeNet;
 
-  if (isLob) {
-    // LOB — hold + DOWN
-    flightTime = 1.6; arcMult = 2.5; label = 'LOB';
-  } else if (isTap) {
-    // TAP = soft shot by position
-    if (inKitchen) {
-      flightTime = 0.7; arcMult = 1.0; label = 'DINK';
-    } else if (atBaseline) {
-      flightTime = 0.8; arcMult = 1.3; label = 'DROP';
-    } else {
-      flightTime = 0.75; arcMult = 1.0; label = 'RESET';
+  if (shotKey === 'lob') {
+    // D = LOB: high arc, deep, safe net clearance
+    flightTime = 1.5; arcMult = 2.5; label = 'LOB'; safeNet = true;
+
+  } else if (shotKey === 'smash') {
+    // S = SMASH: flat, fast, risky net (may clip)
+    // Smash targets MID-COURT (not baseline) to avoid going out
+    flightTime = 0.4; arcMult = 1.0; label = 'SMASH'; safeNet = false;
+    if (power > 0.5) {
+      flightTime = 0.3;
+      label = 'POWER SMASH!';
     }
+
+  } else if (isTap) {
+    // SPACE TAP = soft shot by position, safe net
+    if (inKitchen) {
+      flightTime = 0.8; arcMult = 1.0; label = 'DINK'; safeNet = true;
+    } else if (atBaseline) {
+      flightTime = 0.9; arcMult = 1.3; label = 'DROP'; safeNet = true;
+    } else {
+      flightTime = 0.85; arcMult = 1.0; label = 'RESET'; safeNet = true;
+    }
+
   } else {
-    // HOLD = DRIVE from any position. Power scales with hold time.
-    // Near net + high power = SMASH (put-away)
-    flightTime = 0.8; arcMult = 1.0; label = 'DRIVE';
-    if (inKitchen && power > 0.5) {
-      label = power > 0.7 ? 'SMASH!' : 'SPEED-UP';
-    } else if (power > 0.7) {
+    // SPACE HOLD = DRIVE: fast, slightly risky net
+    flightTime = 0.7; arcMult = 1.0; label = 'DRIVE'; safeNet = false;
+    if (power > 0.6) {
+      flightTime = 0.55;
       label = 'POWER DRIVE!';
     }
-    // Power reduces flight time (faster shot)
-    flightTime /= (1.0 + power * 0.6);
   }
 
   // Forehand / Backhand
@@ -447,26 +507,26 @@ function executePlayerShot(player, gameCtx, forceLob = false) {
     player.swingSide = 'backhand';
   }
 
-  // Target: use crosshair X for horizontal aim, but Y depends on shot type
-  let targetX = aimTarget.x + (Math.random() - 0.5) * 15;
+  // Target: crosshair X for horizontal, Y depends on shot type
+  let targetX = aimTarget.x + (Math.random() - 0.5) * 12;
   let targetY;
 
-  if (isLob) {
-    // Lob → deep baseline
-    targetY = COURT.Y + 10 + Math.random() * 20;
+  if (shotKey === 'lob') {
+    targetY = COURT.Y + 10 + Math.random() * 20;          // deep baseline
+  } else if (shotKey === 'smash') {
+    // Smash aims MID-COURT, not deep — prevents going out
+    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH - 20 + Math.random() * 40;
   } else if (isTap) {
-    // Soft shots (dink/drop/reset) → always target kitchen area
     targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH + 5 + Math.random() * (COURT.KITCHEN_DEPTH - 5);
   } else {
-    // Hard shots (drive/smash/volley) → use crosshair Y (deep by default)
-    targetY = aimTarget.y + (Math.random() - 0.5) * 15;
+    targetY = aimTarget.y + (Math.random() - 0.5) * 12;   // drive: follow crosshair
   }
 
-  targetX = clamp(targetX, COURT.X + 10, COURT.X + COURT.WIDTH - 10);
-  targetY = clamp(targetY, COURT.Y + 5, COURT.NET_Y - 5);
+  targetX = clamp(targetX, COURT.X + 15, COURT.X + COURT.WIDTH - 15);
+  targetY = clamp(targetY, COURT.Y + 10, COURT.NET_Y - 5);
 
   showFeedback(label);
-  hitBall(ball, targetX, targetY, flightTime, arcMult);
+  hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet);
   ball.lastHitBy = 'player';
   rallyCount++;
 

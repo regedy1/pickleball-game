@@ -22,7 +22,7 @@ export const HowToPlay = {
     drawText(ctx, '  ARROWS - MOVE + AIM', x, y, PALETTE.WHITE, 1);      y += lh;
     drawText(ctx, '  SPACE TAP - SOFT SHOT', x, y, PALETTE.WHITE, 1);    y += lh;
     drawText(ctx, '  SPACE HOLD - HARD SHOT', x, y, PALETTE.WHITE, 1);   y += lh;
-    drawText(ctx, '  HOLD + DOWN - LOB', x, y, PALETTE.WHITE, 1);        y += lh + 4;
+    drawText(ctx, '  D - LOB (HIGH ARC)', x, y, PALETTE.WHITE, 1);       y += lh + 4;
 
     drawText(ctx, 'SHOTS BY POSITION:', x, y, PALETTE.ORANGE, 1);        y += lh + 2;
     drawText(ctx, '  AT KITCHEN: TAP=DINK  HOLD=SMASH', x, y, PALETTE.LIGHT_BLUE, 1); y += lh;

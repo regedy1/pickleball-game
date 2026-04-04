@@ -53,11 +53,24 @@ export function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, anim
     ctx.fillRect(px + 14, py + 32, 4, 2);
   }
 
-  // --- Shorts ---
-  ctx.fillStyle = PALETTE.SHORTS_DARK;
-  ctx.fillRect(px + 6, py + 22, 12, 5);
-  ctx.fillStyle = 'rgba(0,0,0,0.1)';
-  ctx.fillRect(px + 6, py + 22, 1, 5);
+  // --- Shorts / Skirt ---
+  if (gender === 'female') {
+    // Skirt — wider, A-line shape, white
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(px + 5, py + 22, 14, 3);    // top of skirt (same width as torso)
+    ctx.fillRect(px + 4, py + 25, 16, 2);    // flared bottom (wider)
+    ctx.fillRect(px + 3, py + 27, 18, 1);    // hem (widest)
+    // Skirt shadow/fold detail
+    ctx.fillStyle = '#d0d0d0';
+    ctx.fillRect(px + 8, py + 23, 1, 4);     // center fold
+    ctx.fillRect(px + 14, py + 23, 1, 4);    // right fold
+  } else {
+    // Shorts — dark, standard
+    ctx.fillStyle = PALETTE.SHORTS_DARK;
+    ctx.fillRect(px + 6, py + 22, 12, 5);
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(px + 6, py + 22, 1, 5);
+  }
 
   // --- Torso (avatar color) ---
   ctx.fillStyle = color;
@@ -87,15 +100,29 @@ export function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, anim
   }
 
   // --- Hair ---
-  const hairColor = gender === 'female' ? '#6b3a2a' : '#4a3728';
-  ctx.fillStyle = hairColor;
-  ctx.fillRect(px + 7, py, 10, 3);
-  ctx.fillRect(px + 8, py - 1, 8, 1);
-  ctx.fillRect(px + 7, py + 3, 1, 3);
-  ctx.fillRect(px + 16, py + 3, 1, 3);
   if (gender === 'female') {
-    ctx.fillRect(px + 10, py - 2, 4, 1);
-    ctx.fillRect(px + 11, py - 3, 2, 1);
+    // Female: longer hair flowing down sides + ponytail
+    ctx.fillStyle = '#6b3a2a';
+    ctx.fillRect(px + 7, py - 1, 10, 4);       // top hair, thicker
+    ctx.fillRect(px + 8, py - 2, 8, 1);        // top peak
+    // Side hair flowing down past ears
+    ctx.fillRect(px + 6, py + 2, 2, 6);        // left side hair
+    ctx.fillRect(px + 16, py + 2, 2, 6);       // right side hair
+    // Ponytail (visible from all angles)
+    ctx.fillRect(px + 10, py - 3, 4, 1);
+    ctx.fillRect(px + 11, py - 4, 2, 1);
+    if (facing === 'up') {
+      // Ponytail hanging down the back
+      ctx.fillRect(px + 10, py - 3, 4, 2);
+      ctx.fillRect(px + 11, py - 5, 2, 2);
+    }
+  } else {
+    // Male: short cropped hair
+    ctx.fillStyle = '#4a3728';
+    ctx.fillRect(px + 7, py, 10, 3);
+    ctx.fillRect(px + 8, py - 1, 8, 1);
+    ctx.fillRect(px + 7, py + 3, 1, 2);
+    ctx.fillRect(px + 16, py + 3, 1, 2);
   }
 
   // --- Headband ---
@@ -105,14 +132,22 @@ export function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, anim
   // --- Face ---
   if (facing !== 'up') {
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(px + 9, py + 6, 2, 2);
-    ctx.fillRect(px + 13, py + 6, 2, 2);
+    ctx.fillRect(px + 9, py + 6, 2, 2);        // left eye
+    ctx.fillRect(px + 13, py + 6, 2, 2);       // right eye
     ctx.fillStyle = '#fff';
-    ctx.fillRect(px + 9, py + 6, 1, 1);
+    ctx.fillRect(px + 9, py + 6, 1, 1);        // eye highlight
     ctx.fillRect(px + 13, py + 6, 1, 1);
-    if (facing === 'down') {
+    if (gender === 'female') {
+      // Eyelashes (1px above each eye)
       ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(px + 9, py + 5, 2, 1);
+      ctx.fillRect(px + 13, py + 5, 2, 1);
+      // Lips (pink, slightly wider than male mouth)
+      ctx.fillStyle = '#e07080';
       ctx.fillRect(px + 10, py + 9, 4, 1);
+    } else if (facing === 'down') {
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(px + 10, py + 9, 4, 1);     // male mouth
     }
   }
 

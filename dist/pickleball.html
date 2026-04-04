@@ -145,19 +145,18 @@ const SHOT_CONFIG = {
 };
 
 // Key bindings
-// SPACE: serve / smash (single=normal, double-tap=power)
-// D: dink (single=center, double-tap+L/R=aimed)
-// S: lob/drop (single=drop, double-tap=far lob)
-// A: reset shot
-// Arrows: move (hold=run)
+// SPACE: tap=soft shot (dink/drop/reset), hold=drive (power bar)
+// S: tap=smash, hold=power smash
+// D: lob
+// Arrows: move + aim crosshair
 const KEYS = {
   UP: 'ArrowUp',
   DOWN: 'ArrowDown',
   LEFT: 'ArrowLeft',
   RIGHT: 'ArrowRight',
   SMASH: ' ',
-  DINK: 'd',
-  LOB: 's',
+  POWER_SMASH: 's',
+  LOB: 'd',
   RESET: 'a',
   SERVE: ' ',
   CONFIRM: 'Enter',
@@ -434,11 +433,24 @@ function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, animFrame, 
     ctx.fillRect(px + 14, py + 32, 4, 2);
   }
 
-  // --- Shorts ---
-  ctx.fillStyle = PALETTE.SHORTS_DARK;
-  ctx.fillRect(px + 6, py + 22, 12, 5);
-  ctx.fillStyle = 'rgba(0,0,0,0.1)';
-  ctx.fillRect(px + 6, py + 22, 1, 5);
+  // --- Shorts / Skirt ---
+  if (gender === 'female') {
+    // Skirt — wider, A-line shape, white
+    ctx.fillStyle = '#f0f0f0';
+    ctx.fillRect(px + 5, py + 22, 14, 3);    // top of skirt (same width as torso)
+    ctx.fillRect(px + 4, py + 25, 16, 2);    // flared bottom (wider)
+    ctx.fillRect(px + 3, py + 27, 18, 1);    // hem (widest)
+    // Skirt shadow/fold detail
+    ctx.fillStyle = '#d0d0d0';
+    ctx.fillRect(px + 8, py + 23, 1, 4);     // center fold
+    ctx.fillRect(px + 14, py + 23, 1, 4);    // right fold
+  } else {
+    // Shorts — dark, standard
+    ctx.fillStyle = PALETTE.SHORTS_DARK;
+    ctx.fillRect(px + 6, py + 22, 12, 5);
+    ctx.fillStyle = 'rgba(0,0,0,0.1)';
+    ctx.fillRect(px + 6, py + 22, 1, 5);
+  }
 
   // --- Torso (avatar color) ---
   ctx.fillStyle = color;
@@ -468,15 +480,29 @@ function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, animFrame, 
   }
 
   // --- Hair ---
-  const hairColor = gender === 'female' ? '#6b3a2a' : '#4a3728';
-  ctx.fillStyle = hairColor;
-  ctx.fillRect(px + 7, py, 10, 3);
-  ctx.fillRect(px + 8, py - 1, 8, 1);
-  ctx.fillRect(px + 7, py + 3, 1, 3);
-  ctx.fillRect(px + 16, py + 3, 1, 3);
   if (gender === 'female') {
-    ctx.fillRect(px + 10, py - 2, 4, 1);
-    ctx.fillRect(px + 11, py - 3, 2, 1);
+    // Female: longer hair flowing down sides + ponytail
+    ctx.fillStyle = '#6b3a2a';
+    ctx.fillRect(px + 7, py - 1, 10, 4);       // top hair, thicker
+    ctx.fillRect(px + 8, py - 2, 8, 1);        // top peak
+    // Side hair flowing down past ears
+    ctx.fillRect(px + 6, py + 2, 2, 6);        // left side hair
+    ctx.fillRect(px + 16, py + 2, 2, 6);       // right side hair
+    // Ponytail (visible from all angles)
+    ctx.fillRect(px + 10, py - 3, 4, 1);
+    ctx.fillRect(px + 11, py - 4, 2, 1);
+    if (facing === 'up') {
+      // Ponytail hanging down the back
+      ctx.fillRect(px + 10, py - 3, 4, 2);
+      ctx.fillRect(px + 11, py - 5, 2, 2);
+    }
+  } else {
+    // Male: short cropped hair
+    ctx.fillStyle = '#4a3728';
+    ctx.fillRect(px + 7, py, 10, 3);
+    ctx.fillRect(px + 8, py - 1, 8, 1);
+    ctx.fillRect(px + 7, py + 3, 1, 2);
+    ctx.fillRect(px + 16, py + 3, 1, 2);
   }
 
   // --- Headband ---
@@ -486,14 +512,22 @@ function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, animFrame, 
   // --- Face ---
   if (facing !== 'up') {
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(px + 9, py + 6, 2, 2);
-    ctx.fillRect(px + 13, py + 6, 2, 2);
+    ctx.fillRect(px + 9, py + 6, 2, 2);        // left eye
+    ctx.fillRect(px + 13, py + 6, 2, 2);       // right eye
     ctx.fillStyle = '#fff';
-    ctx.fillRect(px + 9, py + 6, 1, 1);
+    ctx.fillRect(px + 9, py + 6, 1, 1);        // eye highlight
     ctx.fillRect(px + 13, py + 6, 1, 1);
-    if (facing === 'down') {
+    if (gender === 'female') {
+      // Eyelashes (1px above each eye)
       ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(px + 9, py + 5, 2, 1);
+      ctx.fillRect(px + 13, py + 5, 2, 1);
+      // Lips (pink, slightly wider than male mouth)
+      ctx.fillStyle = '#e07080';
       ctx.fillRect(px + 10, py + 9, 4, 1);
+    } else if (facing === 'down') {
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(px + 10, py + 9, 4, 1);     // male mouth
     }
   }
 
@@ -1006,36 +1040,42 @@ function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player') {
   ball.vz = vz;
 }
 
-function hitBall(ball, targetX, targetY, flightTime, arcMult) {
-  // Ball ALWAYS lands at the target.
-  // flightTime = desired seconds in air (lower = faster, higher = slower/lobbier)
-  // arcMult = height multiplier (1.0 = normal, 2.0 = high lob)
-  // Horizontal speed is ALWAYS computed from actual flight time so ball lands on target.
+function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = true) {
+  // Ball lands at the target. Speed determined by flight time.
+  // flightTime: seconds in air (0.3=smash, 0.7=drive, 1.6=lob)
+  // arcMult: height multiplier (1.0=flat, 2.5=lob)
+  // safeNet: true=guarantee net clearance (soft shots), false=flat & risky (hard shots)
 
   const dx = targetX - ball.x;
   const dy = targetY - ball.y;
   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
   const g = Math.abs(BALL.GRAVITY);
-  const ft = Math.max(flightTime, 0.3);
+  const ft = Math.max(flightTime, 0.2);
 
-  // Compute vz from desired flight time
+  // Base vz from desired flight time
   let vz = 0.5 * g * ft;
 
-  // Ensure net clearance
+  // Net clearance
   const crossesNet = (ball.y < COURT.NET_Y && targetY > COURT.NET_Y) ||
                      (ball.y > COURT.NET_Y && targetY < COURT.NET_Y);
   if (crossesNet) {
-    const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 10));
-    vz = Math.max(vz, minVz);
+    if (safeNet) {
+      // Soft shots: generous clearance — always clears net
+      const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 8));
+      vz = Math.max(vz, minVz);
+    } else {
+      // Hard shots: minimal clearance — barely clears, fast & flat
+      // Only boost if the ball would literally hit the net
+      const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 1));
+      vz = Math.max(vz, minVz);
+    }
   }
 
   // Apply arc multiplier
   vz *= Math.max(arcMult || 1.0, 1.0);
 
-  // ACTUAL flight time after all boosts (this is how long ball is in the air)
+  // Horizontal speed from actual flight time → ball lands at target
   const actualFT = 2 * vz / g;
-
-  // Horizontal speed computed from ACTUAL flight time → ball lands at target
   const hSpeed = dist / Math.max(actualFT, 0.1);
 
   ball.vx = (dx / dist) * hSpeed;
@@ -1162,9 +1202,26 @@ function onBallHit(rules, hitter) {
   return { fault: false };
 }
 
-function checkKitchenVolley(ball, hitter, hitterY) {
-  // Disabled for now — kitchen volley detection was too aggressive
-  // TODO: re-enable with proper bounce tracking
+function checkKitchenVolley(hitter, hitterY, bounceCount) {
+  // Kitchen/NVZ rule: you CANNOT volley while standing in the kitchen.
+  // Volleying = hitting the ball before it bounces on YOUR side.
+  // You CAN enter the kitchen and hit if the ball has bounced there.
+  //
+  // Player's kitchen: NET_Y to NET_Y + KITCHEN_DEPTH
+  // Opponent's kitchen: NET_Y - KITCHEN_DEPTH to NET_Y
+
+  const inKitchen = hitter === 'player'
+    ? hitterY >= COURT.NET_Y && hitterY <= COURT.NET_Y + COURT.KITCHEN_DEPTH
+    : hitterY >= COURT.NET_Y - COURT.KITCHEN_DEPTH && hitterY <= COURT.NET_Y;
+
+  if (!inKitchen) return { fault: false };
+
+  // In the kitchen — only a fault if the ball hasn't bounced on their side (volley)
+  if (bounceCount === 0) {
+    return { fault: true, reason: FaultReason.KITCHEN_VOLLEY, against: hitter };
+  }
+
+  // Ball bounced on their side — legal to hit from kitchen
   return { fault: false };
 }
 
@@ -2075,11 +2132,11 @@ function tryHitBall(ai, opponent, ball, tier, rules) {
   const whiffChance = tier.errorRate * 0.08;
   if (Math.random() < whiffChance) return null;
 
-  // Kitchen volley check — can't volley in kitchen
+  // Kitchen volley check — can't volley while in kitchen
   const aiCenterY = opponent.y + PLAYER.HEIGHT / 2;
   const inKitchen = aiCenterY >= COURT.NET_Y - COURT.KITCHEN_DEPTH && aiCenterY <= COURT.NET_Y;
-  if (inKitchen && !ball.bouncedInCourt) {
-    return null; // Don't volley in kitchen
+  if (inKitchen && rules.bounceCount.opponent === 0) {
+    return null; // In kitchen + ball hasn't bounced = would be a volley fault, so wait
   }
 
   // Target: player's side, well within bounds
@@ -2376,66 +2433,75 @@ const ModeSelect = {
 // ============================================================
 
 
-const FIELDS = ['NAME', 'DUPR', 'AVATAR', 'CONFIRM'];
-let fieldIndex = 0;
-let name = '';
-let dupr = 3.5;
-let avatarIndex = 0;
-let cursorBlink = 0;
+function setupGetAvatars(gameMode) {
+  if (gameMode === GameMode.WOMENS_SINGLES || gameMode === GameMode.WOMENS_DOUBLES)
+    return AVATARS.filter(a => a.gender === 'female');
+  if (gameMode === GameMode.MENS_SINGLES || gameMode === GameMode.MENS_DOUBLES)
+    return AVATARS.filter(a => a.gender === 'male');
+  return AVATARS;
+}
+
+const SETUP_FIELDS = ['NAME', 'DUPR', 'AVATAR', 'CONFIRM'];
+let setupFieldIdx = 0;
+let setupName = '';
+let setupDupr = 3.5;
+let setupAvatarIdx = 0;
+let setupBlink = 0;
+let setupAvatars = AVATARS;
 
 const PlayerSetup = {
   enter(gameCtx) {
-    fieldIndex = 0;
-    name = gameCtx.player.name || '';
-    dupr = gameCtx.player.dupr || 3.5;
-    avatarIndex = gameCtx.player.avatar || 0;
-    cursorBlink = 0;
+    setupFieldIdx = 0;
+    setupName = gameCtx.player.name || '';
+    setupDupr = gameCtx.player.dupr || 3.5;
+    setupAvatars = setupGetAvatars(gameCtx.gameMode);
+    setupAvatarIdx = 0;
+    setupBlink = 0;
   },
 
   exit(gameCtx) {
-    gameCtx.player.name = name || 'PLAYER';
-    gameCtx.player.dupr = dupr;
-    gameCtx.player.avatar = avatarIndex;
-    gameCtx.player.gender = AVATARS[avatarIndex].gender || 'male';
-    // Set AI DUPR to match (+/- variation)
-    gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, dupr + (Math.random() - 0.5)));
+    const av = setupAvatars[setupAvatarIdx];
+    const realIdx = AVATARS.indexOf(av);
+    gameCtx.player.name = setupName || 'PLAYER';
+    gameCtx.player.dupr = setupDupr;
+    gameCtx.player.avatar = realIdx >= 0 ? realIdx : 0;
+    gameCtx.player.gender = av.gender || 'male';
+    const isWomens = gameCtx.gameMode === GameMode.WOMENS_SINGLES || gameCtx.gameMode === GameMode.WOMENS_DOUBLES;
+    gameCtx.opponent.gender = isWomens ? 'female' : 'male';
+    gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, setupDupr + (Math.random() - 0.5)));
   },
 
   update(dt, gameCtx) {
-    cursorBlink += dt;
+    setupBlink += dt;
 
-    // ESC = back to mode select
     if (isPressed('Escape')) {
       playSFX('menuSelect');
       gameCtx.stateMachine.transition(GameState.MODE_SELECT);
       return;
     }
 
-    // Field navigation
     if (isPressed('ArrowDown') || isPressed('Tab')) {
-      fieldIndex = (fieldIndex + 1) % FIELDS.length;
+      setupFieldIdx = (setupFieldIdx + 1) % SETUP_FIELDS.length;
       playSFX('menuMove');
     }
     if (isPressed('ArrowUp')) {
-      fieldIndex = (fieldIndex - 1 + FIELDS.length) % FIELDS.length;
+      setupFieldIdx = (setupFieldIdx - 1 + SETUP_FIELDS.length) % SETUP_FIELDS.length;
       playSFX('menuMove');
     }
 
-    // Field-specific input
-    switch (FIELDS[fieldIndex]) {
+    switch (SETUP_FIELDS[setupFieldIdx]) {
       case 'NAME':
-        handleNameInput();
+        setupHandleName();
         break;
-      case 'DUPR':
-        {
-          const step = isDown('Shift') ? 0.5 : 0.1; // Shift = jump by tier
-          if (isPressed('ArrowRight')) { dupr = Math.min(8.0, Math.round((dupr + step) * 10) / 10); playSFX('menuMove'); }
-          if (isPressed('ArrowLeft'))  { dupr = Math.max(1.0, Math.round((dupr - step) * 10) / 10); playSFX('menuMove'); }
-        }
+      case 'DUPR': {
+        const step = isDown('Shift') ? 0.5 : 0.1;
+        if (isPressed('ArrowRight')) { setupDupr = Math.min(8.0, Math.round((setupDupr + step) * 10) / 10); playSFX('menuMove'); }
+        if (isPressed('ArrowLeft'))  { setupDupr = Math.max(1.0, Math.round((setupDupr - step) * 10) / 10); playSFX('menuMove'); }
         break;
+      }
       case 'AVATAR':
-        if (isPressed('ArrowRight')) { avatarIndex = (avatarIndex + 1) % AVATARS.length; playSFX('menuMove'); }
-        if (isPressed('ArrowLeft'))  { avatarIndex = (avatarIndex - 1 + AVATARS.length) % AVATARS.length; playSFX('menuMove'); }
+        if (isPressed('ArrowRight')) { setupAvatarIdx = (setupAvatarIdx + 1) % setupAvatars.length; playSFX('menuMove'); }
+        if (isPressed('ArrowLeft'))  { setupAvatarIdx = (setupAvatarIdx - 1 + setupAvatars.length) % setupAvatars.length; playSFX('menuMove'); }
         break;
       case 'CONFIRM':
         if (isPressed('Enter') || isPressed(' ')) {
@@ -2445,11 +2511,8 @@ const PlayerSetup = {
         break;
     }
 
-    // Quick confirm from any field
-    if (FIELDS[fieldIndex] !== 'NAME' && isPressed('Enter')) {
-      if (FIELDS[fieldIndex] !== 'CONFIRM') {
-        fieldIndex = FIELDS.length - 1; // jump to confirm
-      }
+    if (SETUP_FIELDS[setupFieldIdx] !== 'NAME' && isPressed('Enter')) {
+      if (SETUP_FIELDS[setupFieldIdx] !== 'CONFIRM') setupFieldIdx = SETUP_FIELDS.length - 1;
     }
   },
 
@@ -2463,41 +2526,36 @@ const PlayerSetup = {
     const startY = 38;
     const lineH = 22;
 
-    // Name field
-    const nameActive = fieldIndex === 0;
+    // Name
+    const nameActive = setupFieldIdx === 0;
     drawText(ctx, 'NAME:', 30, startY, nameActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    const cursor = nameActive && Math.floor(cursorBlink * 3) % 2 === 0 ? '_' : '';
-    drawText(ctx, (name || '') + cursor, 80, startY, PALETTE.WHITE, 1);
+    const cursor = nameActive && Math.floor(setupBlink * 3) % 2 === 0 ? '_' : '';
+    drawText(ctx, (setupName || '') + cursor, 80, startY, PALETTE.WHITE, 1);
 
-    // DUPR field
-    const duprActive = fieldIndex === 1;
-    const tier = DUPR_TIERS.find(t => dupr >= t.min && dupr <= t.max) || DUPR_TIERS[0];
+    // DUPR
+    const duprActive = setupFieldIdx === 1;
+    const tier = DUPR_TIERS.find(t => setupDupr >= t.min && setupDupr <= t.max) || DUPR_TIERS[0];
     drawText(ctx, 'DUPR:', 30, startY + lineH, duprActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    drawText(ctx, `< ${dupr.toFixed(1)} >`, 80, startY + lineH, PALETTE.WHITE, 1);
+    drawText(ctx, `< ${setupDupr.toFixed(1)} >`, 80, startY + lineH, PALETTE.WHITE, 1);
     drawText(ctx, tier.name, 140, startY + lineH, PALETTE.ORANGE, 1);
 
-    // DUPR bar
-    const barX = 80;
-    const barY = startY + lineH + 10;
-    const barW = 100;
+    const barX = 80, barY = startY + lineH + 10, barW = 100;
     ctx.fillStyle = PALETTE.GRAY;
     ctx.fillRect(barX, barY, barW, 3);
     ctx.fillStyle = PALETTE.YELLOW;
-    const fill = ((dupr - 1.0) / 7.0) * barW;
-    ctx.fillRect(barX, barY, fill, 3);
+    ctx.fillRect(barX, barY, ((setupDupr - 1.0) / 7.0) * barW, 3);
 
-    // Avatar field
-    const avatarActive = fieldIndex === 2;
+    // Avatar
+    const avatarActive = setupFieldIdx === 2;
     drawText(ctx, 'AVATAR:', 30, startY + lineH * 2 + 8, avatarActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    const av = AVATARS[avatarIndex];
-    const gLabel = av.gender === 'female' ? 'F' : 'M';
-    drawText(ctx, `< ${av.name} (${gLabel}) >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
+    const av = setupAvatars[setupAvatarIdx];
+    const realIdx = AVATARS.indexOf(av);
+    drawText(ctx, `< ${av.name} >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
 
-    // Avatar preview
-    drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, avatarIndex, 'down', 'idle', 0);
+    drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, realIdx >= 0 ? realIdx : 0, 'down', 'idle', 0, av.gender || 'male');
 
-    // Confirm button
-    const confirmActive = fieldIndex === 3;
+    // Confirm
+    const confirmActive = setupFieldIdx === 3;
     const confirmY = startY + lineH * 2 + 56;
     if (confirmActive) {
       ctx.fillStyle = PALETTE.YELLOW;
@@ -2507,28 +2565,19 @@ const PlayerSetup = {
       drawTextCentered(ctx, 'START MATCH', INTERNAL_WIDTH / 2, confirmY, PALETTE.GRAY, 1);
     }
 
-    // Help text
     drawTextCentered(ctx, 'UP/DOWN: SELECT  LEFT/RIGHT: CHANGE  ESC: BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
-// Keyboard handler for name entry
-const ALLOWED_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
-let keyBuffer = [];
+const SETUP_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
 
-function handleNameInput() {
-  // We check all allowed chars via the input system
-  for (const char of ALLOWED_CHARS) {
+function setupHandleName() {
+  for (const char of SETUP_CHARS) {
     if (isPressed(char) || isPressed(char.toLowerCase())) {
-      if (name.length < 12) {
-        name += char;
-        playSFX('menuMove');
-      }
+      if (setupName.length < 12) { setupName += char; playSFX('menuMove'); }
     }
   }
-  if (isPressed('Backspace')) {
-    name = name.slice(0, -1);
-  }
+  if (isPressed('Backspace')) setupName = setupName.slice(0, -1);
 }
 
 // === src/states/gameplay.js ===
@@ -2556,7 +2605,7 @@ let playerSwingTimer = 0, aiSwingTimer = 0;
 let chargeTime = 0;
 let isCharging = false;
 const MAX_CHARGE = 0.5; // seconds to reach max power
-const SOFT_THRESHOLD = 0.15; // hold < this = tap (soft shot)
+const SOFT_THRESHOLD = 0.25; // hold < 0.25s = tap (soft shot: dink/drop/reset)
 
 // Aim crosshair — follows movement direction
 let aimTarget = { x: 0, y: 0 };
@@ -2703,22 +2752,32 @@ const Gameplay = {
       }
 
       // --- Player shot ---
-      // SPACE: tap=soft, hold=hard (power bar)
-      // D: instant lob
+      // SPACE: tap=soft (dink/drop/reset), hold=drive
+      // S: tap=smash, hold=power smash
+      // D: lob
       const ballOnPlayerSide = getBallSide(ball) === 'player';
       if (ball.lastHitBy !== 'player' && ballOnPlayerSide) {
-        // SPACE charge
+        // SPACE charge (soft/drive)
         if (isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
           chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
         }
         if (isCharging && isReleased(KEYS.SMASH)) {
-          executePlayerShot(player, gameCtx, false);
+          executePlayerShot(player, gameCtx, 'space');
+          isCharging = false; chargeTime = 0;
+        }
+        // S = smash (tap=smash, hold=power smash)
+        if (isDown(KEYS.POWER_SMASH)) {
+          if (!isCharging) { isCharging = true; chargeTime = 0; }
+          chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
+        }
+        if (isCharging && isReleased(KEYS.POWER_SMASH)) {
+          executePlayerShot(player, gameCtx, 'smash');
           isCharging = false; chargeTime = 0;
         }
         // D = instant lob
-        if (isPressed(KEYS.DINK)) {
-          executePlayerShot(player, gameCtx, true);
+        if (isPressed(KEYS.LOB)) {
+          executePlayerShot(player, gameCtx, 'lob');
         }
       } else {
         isCharging = false; chargeTime = 0;
@@ -2764,6 +2823,19 @@ const Gameplay = {
       gameCtx.opponent.animFrame = aiSwingTimer > 0.15 ? 1 : 2;
     }
 
+    // Kitchen zone warning — highlight when player is in the kitchen
+    const playerCY = gameCtx.player.y + PLAYER.HEIGHT / 2;
+    const playerInKitchen = playerCY >= COURT.NET_Y && playerCY <= COURT.NET_Y + COURT.KITCHEN_DEPTH;
+    if (playerInKitchen && ball.active && !ball.landed) {
+      // Red tint over player's kitchen zone
+      ctx.fillStyle = 'rgba(230,57,70,0.15)';
+      ctx.fillRect(COURT.X, COURT.NET_Y, COURT.WIDTH, COURT.KITCHEN_DEPTH);
+      // Warning text
+      if (rules.bounceCount.player === 0) {
+        drawTextCentered(ctx, 'NO VOLLEY ZONE', COURT.CENTER_X, COURT.NET_Y + COURT.KITCHEN_DEPTH / 2 - 4, 'rgba(230,57,70,0.7)', 1);
+      }
+    }
+
     drawPlayer(ctx, gameCtx.opponent);
     drawPlayer(ctx, gameCtx.player);
     drawBall(ctx, ball);
@@ -2780,9 +2852,35 @@ const Gameplay = {
 
     drawHUD(ctx, gameCtx);
 
-    // Serve prompt
-    if (servePrompt && rules.serveState === ServeState.WAITING && gameCtx.score.serving === 'player') {
-      drawTextCentered(ctx, 'SPACE TO SERVE (HOLD=POWER)', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 1);
+    // Serve indicators
+    if (rules.serveState === ServeState.WAITING) {
+      const isPlayerServing = gameCtx.score.serving === 'player';
+      const server = isPlayerServing ? gameCtx.player : gameCtx.opponent;
+      const sx = Math.floor(server.x + PLAYER.WIDTH / 2);
+      const sy = Math.floor(server.y);
+
+      // Bouncing ball above server's head
+      const bounce = Math.sin(Date.now() / 200) * 3;
+      ctx.fillStyle = PALETTE.BALL_YELLOW;
+      ctx.fillRect(sx - 2, sy - 14 + bounce, 5, 5);
+      ctx.fillRect(sx - 1, sy - 15 + bounce, 3, 1);
+      ctx.fillRect(sx - 1, sy - 9 + bounce, 3, 1);
+      // Small highlight
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(sx - 1, sy - 13 + bounce, 1, 1);
+
+      // Arrow pointing at server
+      ctx.fillStyle = PALETTE.YELLOW;
+      ctx.fillRect(sx - 1, sy - 20 + bounce, 3, 3);
+      ctx.fillRect(sx, sy - 17 + bounce, 1, 2);
+
+      // Banner text
+      if (isPlayerServing) {
+        drawTextCentered(ctx, 'YOUR SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 2);
+        drawTextCentered(ctx, 'HOLD SPACE TO SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 8, PALETTE.LIGHT_GRAY, 1);
+      } else {
+        drawTextCentered(ctx, 'OPPONENT SERVING', INTERNAL_WIDTH / 2, COURT.Y - 5, PALETTE.ORANGE, 1);
+      }
     }
 
     // Power bar
@@ -2818,7 +2916,7 @@ const Gameplay = {
       drawTextCentered(ctx, hintText, INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 30, PALETTE.LIGHT_BLUE, 1);
     }
 
-    drawText(ctx, 'SPACE:HIT(TAP=SOFT HOLD=HARD) D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    drawText(ctx, 'SPACE:TAP=SOFT HOLD=DRIVE  S:SMASH  D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
@@ -2894,29 +2992,27 @@ function drawLandingMarker(ctx) {
 // ============================================================
 
 function getShotPreview(player) {
+  const isSmashKey = isDown(KEYS.POWER_SMASH);
+  const power = chargeTime / MAX_CHARGE;
+  if (isSmashKey) return power > 0.5 ? 'POWER SMASH!' : 'SMASH';
   const pcy = player.y + PLAYER.HEIGHT / 2;
-  const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
-  const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
-  const isHold = chargeTime > SOFT_THRESHOLD;
-  const isLob = false; // lob is now D key, not shown in preview
-
-  if (isLob) return 'LOB';
-  if (!isHold) {
-    if (inKitchen) return 'DINK';
-    if (atBaseline) return 'DROP';
+  const isTap = chargeTime <= SOFT_THRESHOLD;
+  if (isTap) {
+    if (pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15) return 'DINK';
+    if (pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40) return 'DROP';
     return 'RESET';
-  } else {
-    const power = chargeTime / MAX_CHARGE;
-    if (inKitchen && power > 0.5) return power > 0.7 ? 'SMASH!' : 'SPEED-UP';
-    return power > 0.7 ? 'POWER DRIVE!' : 'DRIVE';
   }
+  return power > 0.6 ? 'POWER DRIVE!' : 'DRIVE';
 }
 
-function executePlayerShot(player, gameCtx, forceLob = false) {
+function executePlayerShot(player, gameCtx, shotKey = 'space') {
   const pcx = player.x + PLAYER.WIDTH / 2;
   const pcy = player.y + PLAYER.HEIGHT / 2;
-  const dist = Math.sqrt(Math.pow(pcx - ball.x, 2) + Math.pow(pcy - ball.y, 2));
-  if (dist >= 42) return;
+
+  // Hit radius: player sprite is 24x36, so center-to-edge is ~18px
+  // Ball should be within 28px of player center (tight but fair)
+  const dist = Math.sqrt(Math.pow(pcx - ball.x - 3, 2) + Math.pow(pcy - ball.y - 3, 2));
+  if (dist >= 30) return; // too far
 
   // Double-bounce check
   const nextRally = rules.rallyCount + 1;
@@ -2925,41 +3021,54 @@ function executePlayerShot(player, gameCtx, forceLob = false) {
     return;
   }
 
+  // Kitchen volley check
+  const kitchenCheck = checkKitchenVolley('player', pcy, rules.bounceCount.player);
+  if (kitchenCheck.fault) {
+    showFeedback('KITCHEN FAULT!');
+    triggerFault(kitchenCheck.reason, 'player', gameCtx);
+    return;
+  }
+
   const hitResult = onBallHit(rules, 'player');
   if (hitResult.fault) { triggerFault(hitResult.reason, 'player', gameCtx); return; }
 
-  // Determine shot type
   const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
   const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
-  const isTap = chargeTime <= SOFT_THRESHOLD;
-  const isLob = forceLob;
   const power = Math.min(chargeTime / MAX_CHARGE, 1.0);
+  const isTap = chargeTime <= SOFT_THRESHOLD;
 
-  let flightTime, arcMult, label;
+  let flightTime, arcMult, label, safeNet;
 
-  if (isLob) {
-    // LOB — hold + DOWN
-    flightTime = 1.6; arcMult = 2.5; label = 'LOB';
-  } else if (isTap) {
-    // TAP = soft shot by position
-    if (inKitchen) {
-      flightTime = 0.7; arcMult = 1.0; label = 'DINK';
-    } else if (atBaseline) {
-      flightTime = 0.8; arcMult = 1.3; label = 'DROP';
-    } else {
-      flightTime = 0.75; arcMult = 1.0; label = 'RESET';
+  if (shotKey === 'lob') {
+    // D = LOB: high arc, deep, safe net clearance
+    flightTime = 1.5; arcMult = 2.5; label = 'LOB'; safeNet = true;
+
+  } else if (shotKey === 'smash') {
+    // S = SMASH: flat, fast, risky net (may clip)
+    // Smash targets MID-COURT (not baseline) to avoid going out
+    flightTime = 0.4; arcMult = 1.0; label = 'SMASH'; safeNet = false;
+    if (power > 0.5) {
+      flightTime = 0.3;
+      label = 'POWER SMASH!';
     }
+
+  } else if (isTap) {
+    // SPACE TAP = soft shot by position, safe net
+    if (inKitchen) {
+      flightTime = 0.8; arcMult = 1.0; label = 'DINK'; safeNet = true;
+    } else if (atBaseline) {
+      flightTime = 0.9; arcMult = 1.3; label = 'DROP'; safeNet = true;
+    } else {
+      flightTime = 0.85; arcMult = 1.0; label = 'RESET'; safeNet = true;
+    }
+
   } else {
-    // HOLD = DRIVE from any position. Power scales with hold time.
-    // Near net + high power = SMASH (put-away)
-    flightTime = 0.8; arcMult = 1.0; label = 'DRIVE';
-    if (inKitchen && power > 0.5) {
-      label = power > 0.7 ? 'SMASH!' : 'SPEED-UP';
-    } else if (power > 0.7) {
+    // SPACE HOLD = DRIVE: fast, slightly risky net
+    flightTime = 0.7; arcMult = 1.0; label = 'DRIVE'; safeNet = false;
+    if (power > 0.6) {
+      flightTime = 0.55;
       label = 'POWER DRIVE!';
     }
-    // Power reduces flight time (faster shot)
-    flightTime /= (1.0 + power * 0.6);
   }
 
   // Forehand / Backhand
@@ -2971,26 +3080,26 @@ function executePlayerShot(player, gameCtx, forceLob = false) {
     player.swingSide = 'backhand';
   }
 
-  // Target: use crosshair X for horizontal aim, but Y depends on shot type
-  let targetX = aimTarget.x + (Math.random() - 0.5) * 15;
+  // Target: crosshair X for horizontal, Y depends on shot type
+  let targetX = aimTarget.x + (Math.random() - 0.5) * 12;
   let targetY;
 
-  if (isLob) {
-    // Lob → deep baseline
-    targetY = COURT.Y + 10 + Math.random() * 20;
+  if (shotKey === 'lob') {
+    targetY = COURT.Y + 10 + Math.random() * 20;          // deep baseline
+  } else if (shotKey === 'smash') {
+    // Smash aims MID-COURT, not deep — prevents going out
+    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH - 20 + Math.random() * 40;
   } else if (isTap) {
-    // Soft shots (dink/drop/reset) → always target kitchen area
     targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH + 5 + Math.random() * (COURT.KITCHEN_DEPTH - 5);
   } else {
-    // Hard shots (drive/smash/volley) → use crosshair Y (deep by default)
-    targetY = aimTarget.y + (Math.random() - 0.5) * 15;
+    targetY = aimTarget.y + (Math.random() - 0.5) * 12;   // drive: follow crosshair
   }
 
-  targetX = clamp(targetX, COURT.X + 10, COURT.X + COURT.WIDTH - 10);
-  targetY = clamp(targetY, COURT.Y + 5, COURT.NET_Y - 5);
+  targetX = clamp(targetX, COURT.X + 15, COURT.X + COURT.WIDTH - 15);
+  targetY = clamp(targetY, COURT.Y + 10, COURT.NET_Y - 5);
 
   showFeedback(label);
-  hitBall(ball, targetX, targetY, flightTime, arcMult);
+  hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet);
   ball.lastHitBy = 'player';
   rallyCount++;
 
@@ -3350,7 +3459,7 @@ const HowToPlay = {
     drawText(ctx, '  ARROWS - MOVE + AIM', x, y, PALETTE.WHITE, 1);      y += lh;
     drawText(ctx, '  SPACE TAP - SOFT SHOT', x, y, PALETTE.WHITE, 1);    y += lh;
     drawText(ctx, '  SPACE HOLD - HARD SHOT', x, y, PALETTE.WHITE, 1);   y += lh;
-    drawText(ctx, '  HOLD + DOWN - LOB', x, y, PALETTE.WHITE, 1);        y += lh + 4;
+    drawText(ctx, '  D - LOB (HIGH ARC)', x, y, PALETTE.WHITE, 1);       y += lh + 4;
 
     drawText(ctx, 'SHOTS BY POSITION:', x, y, PALETTE.ORANGE, 1);        y += lh + 2;
     drawText(ctx, '  AT KITCHEN: TAP=DINK  HOLD=SMASH', x, y, PALETTE.LIGHT_BLUE, 1); y += lh;

@@ -127,19 +127,18 @@ export const SHOT_CONFIG = {
 };
 
 // Key bindings
-// SPACE: serve / smash (single=normal, double-tap=power)
-// D: dink (single=center, double-tap+L/R=aimed)
-// S: lob/drop (single=drop, double-tap=far lob)
-// A: reset shot
-// Arrows: move (hold=run)
+// SPACE: tap=soft shot (dink/drop/reset), hold=drive (power bar)
+// S: tap=smash, hold=power smash
+// D: lob
+// Arrows: move + aim crosshair
 export const KEYS = {
   UP: 'ArrowUp',
   DOWN: 'ArrowDown',
   LEFT: 'ArrowLeft',
   RIGHT: 'ArrowRight',
   SMASH: ' ',
-  DINK: 'd',
-  LOB: 's',
+  POWER_SMASH: 's',
+  LOB: 'd',
   RESET: 'a',
   SERVE: ' ',
   CONFIRM: 'Enter',

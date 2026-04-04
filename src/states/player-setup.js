@@ -9,66 +9,75 @@ import { drawPlayerSprite } from '../sprites.js';
 import { isPressed, isDown } from '../input.js';
 import { playSFX } from '../audio.js';
 
-const FIELDS = ['NAME', 'DUPR', 'AVATAR', 'CONFIRM'];
-let fieldIndex = 0;
-let name = '';
-let dupr = 3.5;
-let avatarIndex = 0;
-let cursorBlink = 0;
+function setupGetAvatars(gameMode) {
+  if (gameMode === GameMode.WOMENS_SINGLES || gameMode === GameMode.WOMENS_DOUBLES)
+    return AVATARS.filter(a => a.gender === 'female');
+  if (gameMode === GameMode.MENS_SINGLES || gameMode === GameMode.MENS_DOUBLES)
+    return AVATARS.filter(a => a.gender === 'male');
+  return AVATARS;
+}
+
+const SETUP_FIELDS = ['NAME', 'DUPR', 'AVATAR', 'CONFIRM'];
+let setupFieldIdx = 0;
+let setupName = '';
+let setupDupr = 3.5;
+let setupAvatarIdx = 0;
+let setupBlink = 0;
+let setupAvatars = AVATARS;
 
 export const PlayerSetup = {
   enter(gameCtx) {
-    fieldIndex = 0;
-    name = gameCtx.player.name || '';
-    dupr = gameCtx.player.dupr || 3.5;
-    avatarIndex = gameCtx.player.avatar || 0;
-    cursorBlink = 0;
+    setupFieldIdx = 0;
+    setupName = gameCtx.player.name || '';
+    setupDupr = gameCtx.player.dupr || 3.5;
+    setupAvatars = setupGetAvatars(gameCtx.gameMode);
+    setupAvatarIdx = 0;
+    setupBlink = 0;
   },
 
   exit(gameCtx) {
-    gameCtx.player.name = name || 'PLAYER';
-    gameCtx.player.dupr = dupr;
-    gameCtx.player.avatar = avatarIndex;
-    gameCtx.player.gender = AVATARS[avatarIndex].gender || 'male';
-    // Set AI DUPR to match (+/- variation)
-    gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, dupr + (Math.random() - 0.5)));
+    const av = setupAvatars[setupAvatarIdx];
+    const realIdx = AVATARS.indexOf(av);
+    gameCtx.player.name = setupName || 'PLAYER';
+    gameCtx.player.dupr = setupDupr;
+    gameCtx.player.avatar = realIdx >= 0 ? realIdx : 0;
+    gameCtx.player.gender = av.gender || 'male';
+    const isWomens = gameCtx.gameMode === GameMode.WOMENS_SINGLES || gameCtx.gameMode === GameMode.WOMENS_DOUBLES;
+    gameCtx.opponent.gender = isWomens ? 'female' : 'male';
+    gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, setupDupr + (Math.random() - 0.5)));
   },
 
   update(dt, gameCtx) {
-    cursorBlink += dt;
+    setupBlink += dt;
 
-    // ESC = back to mode select
     if (isPressed('Escape')) {
       playSFX('menuSelect');
       gameCtx.stateMachine.transition(GameState.MODE_SELECT);
       return;
     }
 
-    // Field navigation
     if (isPressed('ArrowDown') || isPressed('Tab')) {
-      fieldIndex = (fieldIndex + 1) % FIELDS.length;
+      setupFieldIdx = (setupFieldIdx + 1) % SETUP_FIELDS.length;
       playSFX('menuMove');
     }
     if (isPressed('ArrowUp')) {
-      fieldIndex = (fieldIndex - 1 + FIELDS.length) % FIELDS.length;
+      setupFieldIdx = (setupFieldIdx - 1 + SETUP_FIELDS.length) % SETUP_FIELDS.length;
       playSFX('menuMove');
     }
 
-    // Field-specific input
-    switch (FIELDS[fieldIndex]) {
+    switch (SETUP_FIELDS[setupFieldIdx]) {
       case 'NAME':
-        handleNameInput();
+        setupHandleName();
         break;
-      case 'DUPR':
-        {
-          const step = isDown('Shift') ? 0.5 : 0.1; // Shift = jump by tier
-          if (isPressed('ArrowRight')) { dupr = Math.min(8.0, Math.round((dupr + step) * 10) / 10); playSFX('menuMove'); }
-          if (isPressed('ArrowLeft'))  { dupr = Math.max(1.0, Math.round((dupr - step) * 10) / 10); playSFX('menuMove'); }
-        }
+      case 'DUPR': {
+        const step = isDown('Shift') ? 0.5 : 0.1;
+        if (isPressed('ArrowRight')) { setupDupr = Math.min(8.0, Math.round((setupDupr + step) * 10) / 10); playSFX('menuMove'); }
+        if (isPressed('ArrowLeft'))  { setupDupr = Math.max(1.0, Math.round((setupDupr - step) * 10) / 10); playSFX('menuMove'); }
         break;
+      }
       case 'AVATAR':
-        if (isPressed('ArrowRight')) { avatarIndex = (avatarIndex + 1) % AVATARS.length; playSFX('menuMove'); }
-        if (isPressed('ArrowLeft'))  { avatarIndex = (avatarIndex - 1 + AVATARS.length) % AVATARS.length; playSFX('menuMove'); }
+        if (isPressed('ArrowRight')) { setupAvatarIdx = (setupAvatarIdx + 1) % setupAvatars.length; playSFX('menuMove'); }
+        if (isPressed('ArrowLeft'))  { setupAvatarIdx = (setupAvatarIdx - 1 + setupAvatars.length) % setupAvatars.length; playSFX('menuMove'); }
         break;
       case 'CONFIRM':
         if (isPressed('Enter') || isPressed(' ')) {
@@ -78,11 +87,8 @@ export const PlayerSetup = {
         break;
     }
 
-    // Quick confirm from any field
-    if (FIELDS[fieldIndex] !== 'NAME' && isPressed('Enter')) {
-      if (FIELDS[fieldIndex] !== 'CONFIRM') {
-        fieldIndex = FIELDS.length - 1; // jump to confirm
-      }
+    if (SETUP_FIELDS[setupFieldIdx] !== 'NAME' && isPressed('Enter')) {
+      if (SETUP_FIELDS[setupFieldIdx] !== 'CONFIRM') setupFieldIdx = SETUP_FIELDS.length - 1;
     }
   },
 
@@ -96,41 +102,36 @@ export const PlayerSetup = {
     const startY = 38;
     const lineH = 22;
 
-    // Name field
-    const nameActive = fieldIndex === 0;
+    // Name
+    const nameActive = setupFieldIdx === 0;
     drawText(ctx, 'NAME:', 30, startY, nameActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    const cursor = nameActive && Math.floor(cursorBlink * 3) % 2 === 0 ? '_' : '';
-    drawText(ctx, (name || '') + cursor, 80, startY, PALETTE.WHITE, 1);
+    const cursor = nameActive && Math.floor(setupBlink * 3) % 2 === 0 ? '_' : '';
+    drawText(ctx, (setupName || '') + cursor, 80, startY, PALETTE.WHITE, 1);
 
-    // DUPR field
-    const duprActive = fieldIndex === 1;
-    const tier = DUPR_TIERS.find(t => dupr >= t.min && dupr <= t.max) || DUPR_TIERS[0];
+    // DUPR
+    const duprActive = setupFieldIdx === 1;
+    const tier = DUPR_TIERS.find(t => setupDupr >= t.min && setupDupr <= t.max) || DUPR_TIERS[0];
     drawText(ctx, 'DUPR:', 30, startY + lineH, duprActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    drawText(ctx, `< ${dupr.toFixed(1)} >`, 80, startY + lineH, PALETTE.WHITE, 1);
+    drawText(ctx, `< ${setupDupr.toFixed(1)} >`, 80, startY + lineH, PALETTE.WHITE, 1);
     drawText(ctx, tier.name, 140, startY + lineH, PALETTE.ORANGE, 1);
 
-    // DUPR bar
-    const barX = 80;
-    const barY = startY + lineH + 10;
-    const barW = 100;
+    const barX = 80, barY = startY + lineH + 10, barW = 100;
     ctx.fillStyle = PALETTE.GRAY;
     ctx.fillRect(barX, barY, barW, 3);
     ctx.fillStyle = PALETTE.YELLOW;
-    const fill = ((dupr - 1.0) / 7.0) * barW;
-    ctx.fillRect(barX, barY, fill, 3);
+    ctx.fillRect(barX, barY, ((setupDupr - 1.0) / 7.0) * barW, 3);
 
-    // Avatar field
-    const avatarActive = fieldIndex === 2;
+    // Avatar
+    const avatarActive = setupFieldIdx === 2;
     drawText(ctx, 'AVATAR:', 30, startY + lineH * 2 + 8, avatarActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    const av = AVATARS[avatarIndex];
-    const gLabel = av.gender === 'female' ? 'F' : 'M';
-    drawText(ctx, `< ${av.name} (${gLabel}) >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
+    const av = setupAvatars[setupAvatarIdx];
+    const realIdx = AVATARS.indexOf(av);
+    drawText(ctx, `< ${av.name} >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
 
-    // Avatar preview
-    drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, avatarIndex, 'down', 'idle', 0);
+    drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, realIdx >= 0 ? realIdx : 0, 'down', 'idle', 0, av.gender || 'male');
 
-    // Confirm button
-    const confirmActive = fieldIndex === 3;
+    // Confirm
+    const confirmActive = setupFieldIdx === 3;
     const confirmY = startY + lineH * 2 + 56;
     if (confirmActive) {
       ctx.fillStyle = PALETTE.YELLOW;
@@ -140,26 +141,17 @@ export const PlayerSetup = {
       drawTextCentered(ctx, 'START MATCH', INTERNAL_WIDTH / 2, confirmY, PALETTE.GRAY, 1);
     }
 
-    // Help text
     drawTextCentered(ctx, 'UP/DOWN: SELECT  LEFT/RIGHT: CHANGE  ESC: BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
-// Keyboard handler for name entry
-const ALLOWED_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
-let keyBuffer = [];
+const SETUP_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
 
-function handleNameInput() {
-  // We check all allowed chars via the input system
-  for (const char of ALLOWED_CHARS) {
+function setupHandleName() {
+  for (const char of SETUP_CHARS) {
     if (isPressed(char) || isPressed(char.toLowerCase())) {
-      if (name.length < 12) {
-        name += char;
-        playSFX('menuMove');
-      }
+      if (setupName.length < 12) { setupName += char; playSFX('menuMove'); }
     }
   }
-  if (isPressed('Backspace')) {
-    name = name.slice(0, -1);
-  }
+  if (isPressed('Backspace')) setupName = setupName.slice(0, -1);
 }
