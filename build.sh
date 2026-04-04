@@ -16,6 +16,7 @@ ORDER=(
   src/ai.js
   src/states/state-machine.js
   src/states/title-screen.js
+  src/states/mode-select.js
   src/states/player-setup.js
   src/states/gameplay.js
   src/states/point-end.js
