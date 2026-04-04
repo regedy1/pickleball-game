@@ -13,6 +13,7 @@ import { GameState, PALETTE, INTERNAL_WIDTH, INTERNAL_HEIGHT, COURT, PLAYER, BAL
 import { clearScreen, drawCourt, drawPlayer, drawBall, drawHUD } from '../renderer.js';
 import { drawText, drawTextCentered } from '../font.js';
 import { isDown, isPressed, isReleased } from '../input.js';
+import { isTouchDevice } from '../touch.js';
 import { playSFX, playBGM, stopBGM } from '../audio.js';
 import { createBall, updateBall, serveBall, hitBall, getBallSide, predictLanding } from '../physics.js';
 import { resetBallTrail } from '../sprites.js';
@@ -133,6 +134,11 @@ export const Gameplay = {
           performPlayerServe(player, power);
           isCharging = false; chargeTime = 0;
           servePositioned = false;
+        } else if (!isCharging && isReleased(KEYS.SMASH) && isPressed(KEYS.SMASH)) {
+          // Instant tap serve (common on mobile touch)
+          performPlayerServe(player, 1.0);
+          isCharging = false; chargeTime = 0;
+          servePositioned = false;
         }
       } else {
         serveDelayTimer += dt;
@@ -192,6 +198,10 @@ export const Gameplay = {
         if (isCharging && isReleased(KEYS.SMASH)) {
           executePlayerShot(player, gameCtx, 'space');
           isCharging = false; chargeTime = 0;
+        } else if (!isCharging && isReleased(KEYS.SMASH) && isPressed(KEYS.SMASH)) {
+          // Instant tap (pressed+released same frame, common on mobile touch)
+          chargeTime = 0;
+          executePlayerShot(player, gameCtx, 'space');
         }
         // S = smash (tap=smash, hold=power smash)
         if (isDown(KEYS.POWER_SMASH)) {
@@ -201,6 +211,9 @@ export const Gameplay = {
         if (isCharging && isReleased(KEYS.POWER_SMASH)) {
           executePlayerShot(player, gameCtx, 'smash');
           isCharging = false; chargeTime = 0;
+        } else if (!isCharging && isReleased(KEYS.POWER_SMASH) && isPressed(KEYS.POWER_SMASH)) {
+          chargeTime = 0;
+          executePlayerShot(player, gameCtx, 'smash');
         }
         // D = instant lob
         if (isPressed(KEYS.LOB)) {
@@ -304,7 +317,7 @@ export const Gameplay = {
       // Banner text
       if (isPlayerServing) {
         drawTextCentered(ctx, 'YOUR SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 2);
-        drawTextCentered(ctx, 'HOLD SPACE TO SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 8, PALETTE.LIGHT_GRAY, 1);
+        drawTextCentered(ctx, isTouchDevice() ? 'HOLD SHOT TO SERVE' : 'HOLD SPACE TO SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 8, PALETTE.LIGHT_GRAY, 1);
       } else {
         drawTextCentered(ctx, 'OPPONENT SERVING', INTERNAL_WIDTH / 2, COURT.Y - 5, PALETTE.ORANGE, 1);
       }
@@ -343,7 +356,9 @@ export const Gameplay = {
       drawTextCentered(ctx, hintText, INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 30, PALETTE.LIGHT_BLUE, 1);
     }
 
-    drawText(ctx, 'SPACE:TAP=SOFT HOLD=DRIVE  S:SMASH  D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    if (!isTouchDevice()) {
+      drawText(ctx, 'SPACE:TAP=SOFT HOLD=DRIVE  S:SMASH  D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    }
   },
 };
 

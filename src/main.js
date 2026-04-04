@@ -5,21 +5,27 @@
 import { INTERNAL_WIDTH, INTERNAL_HEIGHT, DT } from './constants.js';
 import { createGame } from './game.js';
 import { initInput, inputTick } from './input.js';
+import { initTouch, isTouchDevice } from './touch.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
 canvas.width = INTERNAL_WIDTH;
 canvas.height = INTERNAL_HEIGHT;
 
+const isMobile = isTouchDevice();
+
 function resize() {
   const scale = Math.min(
     window.innerWidth / INTERNAL_WIDTH,
     window.innerHeight / INTERNAL_HEIGHT
   );
-  // Use integer scaling for crisp pixels
-  const intScale = Math.max(1, Math.floor(scale));
-  canvas.style.width = (INTERNAL_WIDTH * intScale) + 'px';
-  canvas.style.height = (INTERNAL_HEIGHT * intScale) + 'px';
+  // Mobile: fractional scaling to use full screen (CSS pixelated handles interpolation)
+  // Desktop: integer scaling for pixel-perfect rendering
+  const finalScale = isMobile
+    ? Math.max(1, scale * 0.95)
+    : Math.max(1, Math.floor(scale));
+  canvas.style.width = (INTERNAL_WIDTH * finalScale) + 'px';
+  canvas.style.height = (INTERNAL_HEIGHT * finalScale) + 'px';
 }
 window.addEventListener('resize', resize);
 resize();
@@ -27,6 +33,7 @@ resize();
 ctx.imageSmoothingEnabled = false;
 
 initInput();
+initTouch();
 
 const gameCtx = createGame();
 let accumulator = 0;

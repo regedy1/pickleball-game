@@ -43,3 +43,16 @@ export function isPressed(key) {
 export function isReleased(key) {
   return !!releasedThisFrame[key];
 }
+
+// Touch input injection — lets touch.js feed into the same key state system
+export function simulateKeyDown(key) {
+  if (!keysDown[key]) {
+    keysDown[key] = true;
+    pressedThisFrame[key] = true;
+  }
+}
+
+export function simulateKeyUp(key) {
+  keysDown[key] = false;
+  releasedThisFrame[key] = true;
+}
