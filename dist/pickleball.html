@@ -431,20 +431,21 @@ function tryFullscreen() {
 
 // --- Button touch handlers ---
 function setupButtonTouch(btn, key) {
-  btn.addEventListener('touchstart', (e) => {
+  function onStart(e) {
     e.preventDefault();
+    e.stopPropagation();
     tryFullscreen();
     for (const touch of e.changedTouches) {
-      // Skip if another finger is already holding this button's key
       if ([...buttonTouchMap.values()].includes(key)) continue;
       buttonTouchMap.set(touch.identifier, key);
       simulateKeyDown(key);
       btn.classList.add('active');
     }
-  }, { passive: false });
+  }
 
-  btn.addEventListener('touchend', (e) => {
+  function onEnd(e) {
     e.preventDefault();
+    e.stopPropagation();
     for (const touch of e.changedTouches) {
       if (buttonTouchMap.get(touch.identifier) === key) {
         buttonTouchMap.delete(touch.identifier);
@@ -452,26 +453,43 @@ function setupButtonTouch(btn, key) {
         btn.classList.remove('active');
       }
     }
-  }, { passive: false });
+  }
 
-  btn.addEventListener('touchcancel', (e) => {
+  btn.addEventListener('touchstart', onStart, { passive: false });
+  btn.addEventListener('touchend', onEnd, { passive: false });
+  btn.addEventListener('touchcancel', onEnd, { passive: false });
+
+  // Also handle pointer events as fallback (some browsers / DevTools use these)
+  btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
-    for (const touch of e.changedTouches) {
-      if (buttonTouchMap.get(touch.identifier) === key) {
-        buttonTouchMap.delete(touch.identifier);
-        simulateKeyUp(key);
-        btn.classList.remove('active');
-      }
+    simulateKeyDown(key);
+    btn.classList.add('active');
+    buttonTouchMap.set(e.pointerId, key);
+  });
+  btn.addEventListener('pointerup', (e) => {
+    e.preventDefault();
+    if (buttonTouchMap.get(e.pointerId) === key) {
+      buttonTouchMap.delete(e.pointerId);
+      simulateKeyUp(key);
+      btn.classList.remove('active');
     }
-  }, { passive: false });
+  });
+  btn.addEventListener('pointercancel', (e) => {
+    if (buttonTouchMap.get(e.pointerId) === key) {
+      buttonTouchMap.delete(e.pointerId);
+      simulateKeyUp(key);
+      btn.classList.remove('active');
+    }
+  });
 }
 
 // --- Joystick touch handlers ---
 function setupJoystickTouch() {
+  // Touch events (real mobile)
   joystickZone.addEventListener('touchstart', (e) => {
     e.preventDefault();
     tryFullscreen();
-    if (joystickTouchId !== null) return; // already tracking a joystick touch
+    if (joystickTouchId !== null) return;
     const touch = e.changedTouches[0];
     joystickTouchId = touch.identifier;
     joystickBaseX = touch.clientX;
@@ -501,6 +519,34 @@ function setupJoystickTouch() {
   };
   joystickZone.addEventListener('touchend', endJoystick, { passive: false });
   joystickZone.addEventListener('touchcancel', endJoystick, { passive: false });
+
+  // Pointer events fallback (DevTools touch simulation, some browsers)
+  joystickZone.addEventListener('pointerdown', (e) => {
+    if (e.pointerType === 'mouse') return; // ignore real mouse
+    e.preventDefault();
+    tryFullscreen();
+    if (joystickTouchId !== null) return;
+    joystickTouchId = e.pointerId;
+    joystickBaseX = e.clientX;
+    joystickBaseY = e.clientY;
+    showJoystick(e.clientX, e.clientY);
+    updateJoystickDirection(e.clientX, e.clientY);
+    joystickZone.setPointerCapture(e.pointerId);
+  });
+  joystickZone.addEventListener('pointermove', (e) => {
+    if (e.pointerId === joystickTouchId) {
+      updateJoystickDirection(e.clientX, e.clientY);
+    }
+  });
+  const endPointerJoystick = (e) => {
+    if (e.pointerId === joystickTouchId) {
+      joystickTouchId = null;
+      releaseAllJoystickKeys();
+      hideJoystick();
+    }
+  };
+  joystickZone.addEventListener('pointerup', endPointerJoystick);
+  joystickZone.addEventListener('pointercancel', endPointerJoystick);
 }
 
 // --- Init ---
