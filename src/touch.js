@@ -14,13 +14,12 @@ export function isTouchDevice() {
 let joystickTouchId = null;
 let joystickBaseX = 0;
 let joystickBaseY = 0;
-const joystickMaxRadius = 50;
-const joystickDeadZone = 0.15;
+let joystickMaxRadius = 60; // recalculated on init from visual size
+const joystickDeadZone = 0.2; // 20% dead zone — prevents drift
 let activeJoystickKeys = new Set();
-// Track which touch.identifier owns which button key
 const buttonTouchMap = new Map(); // touchId -> key
 
-// --- DOM refs (set in initTouch) ---
+// --- DOM refs ---
 let container = null;
 let joystickZone = null;
 let joystickBase = null;
@@ -38,11 +37,10 @@ function createButton(id, label, cssProps) {
 
 // --- Joystick direction mapping ---
 function getKeysFromAngle(angle, magnitude) {
-  // angle in radians, 0 = right, PI/2 = down, -PI/2 = up
   if (magnitude < joystickDeadZone) return [];
 
   const deg = ((angle * 180 / Math.PI) + 360) % 360;
-  // 8 zones, 45 degrees each, offset by 22.5 so 0 deg is center of RIGHT zone
+  // 8 zones, 45 degrees each
   if (deg >= 337.5 || deg < 22.5) return [KEYS.RIGHT];
   if (deg >= 22.5 && deg < 67.5) return [KEYS.RIGHT, KEYS.DOWN];
   if (deg >= 67.5 && deg < 112.5) return [KEYS.DOWN];
@@ -61,24 +59,20 @@ function updateJoystickDirection(touchX, touchY) {
   const magnitude = Math.min(dist / joystickMaxRadius, 1);
   const angle = Math.atan2(dy, dx);
 
-  // Clamp knob position
+  // Clamp knob to max radius
   const clampedDist = Math.min(dist, joystickMaxRadius);
   const knobX = joystickBaseX + (dx / (dist || 1)) * clampedDist;
   const knobY = joystickBaseY + (dy / (dist || 1)) * clampedDist;
 
-  // Position knob
   const knobSize = joystickKnob.offsetWidth;
   joystickKnob.style.left = (knobX - knobSize / 2) + 'px';
   joystickKnob.style.top = (knobY - knobSize / 2) + 'px';
 
-  // Determine new keys
   const newKeys = new Set(getKeysFromAngle(angle, magnitude));
 
-  // Release keys no longer active
   for (const key of activeJoystickKeys) {
     if (!newKeys.has(key)) simulateKeyUp(key);
   }
-  // Press newly active keys
   for (const key of newKeys) {
     if (!activeJoystickKeys.has(key)) simulateKeyDown(key);
   }
@@ -93,11 +87,13 @@ function releaseAllJoystickKeys() {
 }
 
 function showJoystick(x, y) {
-  // Show elements first so offsetWidth returns correct values
   joystickBase.style.display = 'block';
   joystickKnob.style.display = 'block';
 
+  // Sync functional radius to visual radius
   const baseSize = joystickBase.offsetWidth;
+  joystickMaxRadius = (baseSize / 2) * 0.85; // 85% of visual — knob stays inside
+
   joystickBase.style.left = (x - baseSize / 2) + 'px';
   joystickBase.style.top = (y - baseSize / 2) + 'px';
 
@@ -154,9 +150,10 @@ function setupButtonTouch(btn, key) {
   btn.addEventListener('touchend', onEnd, { passive: false });
   btn.addEventListener('touchcancel', onEnd, { passive: false });
 
-  // Also handle pointer events as fallback (some browsers / DevTools use these)
+  // Pointer events fallback (DevTools touch simulation, some browsers)
   btn.addEventListener('pointerdown', (e) => {
     e.preventDefault();
+    if ([...buttonTouchMap.values()].includes(key)) return;
     simulateKeyDown(key);
     btn.classList.add('active');
     buttonTouchMap.set(e.pointerId, key);
@@ -180,7 +177,6 @@ function setupButtonTouch(btn, key) {
 
 // --- Joystick touch handlers ---
 function setupJoystickTouch() {
-  // Touch events (real mobile)
   joystickZone.addEventListener('touchstart', (e) => {
     e.preventDefault();
     tryFullscreen();
@@ -215,9 +211,9 @@ function setupJoystickTouch() {
   joystickZone.addEventListener('touchend', endJoystick, { passive: false });
   joystickZone.addEventListener('touchcancel', endJoystick, { passive: false });
 
-  // Pointer events fallback (DevTools touch simulation, some browsers)
+  // Pointer events fallback
   joystickZone.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse') return; // ignore real mouse
+    if (e.pointerType === 'mouse') return;
     e.preventDefault();
     tryFullscreen();
     if (joystickTouchId !== null) return;
@@ -255,29 +251,39 @@ export function initTouch() {
 
   if (!container) return;
 
-  // Show the touch controls container
   container.style.display = 'block';
 
-  // Create action buttons
-  // Use safe-area-inset to avoid iPhone home indicator / notch
-  const safeRight = 'calc(3vw + env(safe-area-inset-right, 0px))';
-  const safeBottom = 'calc(5vh + env(safe-area-inset-bottom, 0px))';
+  // Action buttons — sized with min() for minimum physical size,
+  // spaced with generous gaps using vh (short axis in landscape)
+  const safeR = 'calc(2vw + env(safe-area-inset-right, 0px))';
+  const safeB = 'env(safe-area-inset-bottom, 0px)';
+  const safeT = 'env(safe-area-inset-top, 0px)';
+  const safeL = 'env(safe-area-inset-left, 0px)';
 
+  // Bottom-up layout: SHOT at bottom, SMASH above with gap, LOB above that
+  // Using vh for vertical positioning (reliable in landscape)
   const shotBtn = createButton('btn-shot', 'SHOT', {
-    right: safeRight, bottom: safeBottom,
-    width: '14vw', height: '14vw', fontSize: '2.5vw',
+    right: safeR,
+    bottom: `calc(4vh + ${safeB})`,
+    width: 'min(18vw, 25vh)', height: 'min(18vw, 25vh)',
+    fontSize: 'min(3vw, 4vh)',
   });
   const smashBtn = createButton('btn-smash', 'SMASH', {
-    right: safeRight, bottom: 'calc(5vh + 15vw + env(safe-area-inset-bottom, 0px))',
-    width: '11vw', height: '11vw', fontSize: '2vw',
+    right: safeR,
+    bottom: `calc(34vh + ${safeB})`,
+    width: 'min(15vw, 21vh)', height: 'min(15vw, 21vh)',
+    fontSize: 'min(2.5vw, 3.5vh)',
   });
   const lobBtn = createButton('btn-lob', 'LOB', {
-    right: 'calc(4.5vw + env(safe-area-inset-right, 0px))', bottom: 'calc(5vh + 27vw + env(safe-area-inset-bottom, 0px))',
-    width: '9vw', height: '9vw', fontSize: '2vw',
+    right: `calc(1vw + env(safe-area-inset-right, 0px))`,
+    bottom: `calc(60vh + ${safeB})`,
+    width: 'min(13vw, 18vh)', height: 'min(13vw, 18vh)',
+    fontSize: 'min(2.5vw, 3.5vh)',
   });
-  const pauseBtn = createButton('btn-pause', '| |', {
-    left: 'calc(2vw + env(safe-area-inset-left, 0px))', top: 'calc(2vh + env(safe-area-inset-top, 0px))',
-    width: '6vw', height: '6vw', fontSize: '1.8vw',
+  const pauseBtn = createButton('btn-pause', '||', {
+    left: `calc(1vw + ${safeL})`, top: `calc(1vh + ${safeT})`,
+    width: 'min(5vw, 7vh)', height: 'min(5vw, 7vh)',
+    fontSize: 'min(1.5vw, 2vh)',
     borderRadius: '20%',
   });
 
@@ -286,16 +292,14 @@ export function initTouch() {
   container.appendChild(lobBtn);
   container.appendChild(pauseBtn);
 
-  // Wire up button touch events
-  setupButtonTouch(shotBtn, ' ');   // Space — soft/drive/serve/confirm
-  setupButtonTouch(smashBtn, KEYS.POWER_SMASH); // 's'
-  setupButtonTouch(lobBtn, KEYS.LOB);            // 'd'
-  setupButtonTouch(pauseBtn, KEYS.PAUSE);        // Escape
+  setupButtonTouch(shotBtn, ' ');
+  setupButtonTouch(smashBtn, KEYS.POWER_SMASH);
+  setupButtonTouch(lobBtn, KEYS.LOB);
+  setupButtonTouch(pauseBtn, KEYS.PAUSE);
 
-  // Wire up joystick
   setupJoystickTouch();
 
-  // Prevent default on the whole document to stop pull-to-refresh etc.
+  // Block pull-to-refresh and other gestures
   document.addEventListener('touchmove', (e) => {
     if (e.target.closest('#touch-controls') || e.target.tagName === 'CANVAS') {
       e.preventDefault();

@@ -56,11 +56,11 @@ cat > dist/pickleball.html << 'HTMLEOF'
 html,body{background:#000;display:flex;justify-content:center;align-items:center;height:100%;overflow:hidden;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;overscroll-behavior:none;position:fixed;width:100%}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor}
 #touch-controls{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10;display:none}
-#touch-controls .btn{pointer-events:auto;position:absolute;border-radius:50%;background:rgba(255,255,255,0.12);border:2px solid rgba(255,255,255,0.25);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.5);font-family:monospace;font-weight:bold;font-size:3vw;-webkit-tap-highlight-color:transparent;transition:background 0.08s,border-color 0.08s}
-#touch-controls .btn.active{background:rgba(255,255,255,0.3);border-color:rgba(255,255,255,0.5)}
-#joystick-zone{pointer-events:auto;position:absolute;left:0;top:0;width:35%;height:100%}
-#joystick-base{position:absolute;width:26vw;height:26vw;border-radius:50%;background:rgba(255,255,255,0.08);border:2px solid rgba(255,255,255,0.15);display:none;pointer-events:none}
-#joystick-knob{position:absolute;width:10vw;height:10vw;border-radius:50%;background:rgba(255,255,255,0.3);border:2px solid rgba(255,255,255,0.5);display:none;pointer-events:none}
+#touch-controls .btn{pointer-events:auto;position:absolute;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.7);font-family:monospace;font-weight:bold;font-size:3vw;-webkit-tap-highlight-color:transparent;transition:background 0.08s,border-color 0.08s}
+#touch-controls .btn.active{background:rgba(255,255,255,0.35);border-color:rgba(255,255,255,0.6)}
+#joystick-zone{pointer-events:auto;position:absolute;left:0;top:0;width:40%;height:100%}
+#joystick-base{position:absolute;width:min(30vw,40vh);height:min(30vw,40vh);border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.12);display:none;pointer-events:none}
+#joystick-knob{position:absolute;width:min(10vw,14vh);height:min(10vw,14vh);border-radius:50%;background:rgba(255,255,255,0.35);border:2px solid rgba(255,255,255,0.55);display:none;pointer-events:none}
 #rotate-prompt{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#000;color:#fff;font-family:monospace;font-size:5vw;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:3vh}
 #rotate-prompt .rotate-icon{font-size:15vw}
 @media(orientation:portrait) and (hover:none) and (pointer:coarse){#rotate-prompt{display:flex!important}#touch-controls,canvas{display:none!important}}
