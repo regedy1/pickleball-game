@@ -1055,18 +1055,19 @@ function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = true) {
   // Base vz from desired flight time
   let vz = 0.5 * g * ft;
 
-  // Net clearance
+  // Net clearance — accounts for ball's current height
   const crossesNet = (ball.y < COURT.NET_Y && targetY > COURT.NET_Y) ||
                      (ball.y > COURT.NET_Y && targetY < COURT.NET_Y);
   if (crossesNet) {
+    const heightNeeded = Math.max(BALL.NET_HEIGHT - ball.z, 0);
     if (safeNet) {
-      // Soft shots: generous clearance — always clears net
-      const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 8));
+      // Soft shots: generous margin
+      const minVz = Math.sqrt(2 * g * (heightNeeded + 8));
       vz = Math.max(vz, minVz);
-    } else {
-      // Hard shots: minimal clearance — barely clears, fast & flat
-      // Only boost if the ball would literally hit the net
-      const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 1));
+    } else if (heightNeeded > 0) {
+      // Hard shots: minimal boost only if ball is below net
+      // If ball is already above net (smash), NO boost → full speed
+      const minVz = Math.sqrt(2 * g * (heightNeeded + 1));
       vz = Math.max(vz, minVz);
     }
   }
