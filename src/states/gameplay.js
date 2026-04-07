@@ -569,6 +569,7 @@ function executePlayerShot(player, gameCtx, shotKey = 'space') {
 
   player.animState = player.swingSide || 'forehand';
   player.animFrame = 0;
+  player.facing = 'up'; // face the net when hitting — swing animation looks correct
   playerSwingTimer = 0.25;
   playSFX('hit');
   return true;
@@ -635,6 +636,9 @@ function updatePlayerMovement(player, dt) {
   player.x += player.vx * dt; player.y += player.vy * dt;
   player.x = clamp(player.x, COURT.X - 5, COURT.X + COURT.WIDTH - PLAYER.WIDTH + 5);
   player.y = clamp(player.y, COURT.NET_Y + 2, COURT.Y + COURT.HEIGHT - PLAYER.HEIGHT);
+
+  // Don't override facing/anim during swing — keep facing net with swing animation
+  if (playerSwingTimer > 0) return;
 
   if (player.vx < -5) player.facing = 'left';
   else if (player.vx > 5) player.facing = 'right';
