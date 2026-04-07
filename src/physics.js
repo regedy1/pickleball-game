@@ -11,6 +11,7 @@ export function createBall() {
     z: 0,             // virtual height
     vx: 0, vy: 0,
     vz: 0,
+    spin: 0,          // -1.0 backspin to +1.0 topspin
     active: false,
     bounced: false,    // has bounced on current side
     lastHitBy: null,   // 'player' or 'opponent'
@@ -27,12 +28,22 @@ export function updateBall(ball, dt) {
   // Store previous Y for swept net detection
   ball.prevY = ball.y;
 
+  // Air drag on horizontal velocity (while airborne)
+  if (ball.z > 0) {
+    const drag = 1 - BALL.DRAG * dt;
+    ball.vx *= drag;
+    ball.vy *= drag;
+  }
+
   // Apply velocity
   ball.x += ball.vx * dt;
   ball.y += ball.vy * dt;
 
-  // Gravity on z
+  // Gravity on z + spin curve (topspin pulls down, backspin lifts)
   ball.vz += BALL.GRAVITY * dt;
+  if (ball.z > 0) {
+    ball.vz += ball.spin * BALL.SPIN_CURVE * dt;
+  }
   ball.z += ball.vz * dt;
 
   // Net cooldown countdown
@@ -56,8 +67,10 @@ export function updateBall(ball, dt) {
       ball.vz = Math.abs(ball.vz) * BALL.BOUNCE_DAMPING;
       ball.bounced = true;
     }
-    ball.vx *= 0.85;
-    ball.vy *= 0.85;
+    // Spin affects post-bounce speed: topspin accelerates, backspin decelerates
+    const spinFriction = 0.85 + ball.spin * 0.15;
+    ball.vx *= spinFriction;
+    ball.vy *= spinFriction;
   }
 
   return checkBallBoundaries(ball);
@@ -106,6 +119,7 @@ export function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player
   ball.landed = false;
   ball.netCooldown = 0.3;
   ball.lastHitBy = server;
+  ball.spin = 0.3; // moderate topspin on serve
 
   // Use the same "land at target" physics as hitBall
   const dx = targetX - fromX;
@@ -121,18 +135,22 @@ export function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player
   vz = Math.max(vz, minVz);
 
   const actualFlightTime = 2 * vz / g;
-  const hSpeed = dist / Math.max(actualFlightTime, 0.1);
+  const dragCompensation = 1 / (1 - BALL.DRAG * actualFlightTime * 0.4);
+  const hSpeed = (dist / Math.max(actualFlightTime, 0.1)) * dragCompensation;
 
   ball.vx = (dx / dist) * hSpeed;
   ball.vy = (dy / dist) * hSpeed;
   ball.vz = vz;
 }
 
-export function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = true) {
+export function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = true, spin = 0) {
   // Ball lands at the target. Speed determined by flight time.
   // flightTime: seconds in air (0.3=smash, 0.7=drive, 1.6=lob)
   // arcMult: height multiplier (1.0=flat, 2.5=lob)
   // safeNet: true=guarantee net clearance (soft shots), false=flat & risky (hard shots)
+  // spin: -1.0 backspin to +1.0 topspin
+
+  ball.spin = spin;
 
   const dx = targetX - ball.x;
   const dy = targetY - ball.y;
@@ -165,7 +183,9 @@ export function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = t
 
   // Horizontal speed from actual flight time → ball lands at target
   const actualFT = 2 * vz / g;
-  const hSpeed = dist / Math.max(actualFT, 0.1);
+  // Compensate for air drag so ball still reaches target
+  const dragCompensation = 1 / (1 - BALL.DRAG * actualFT * 0.4);
+  const hSpeed = (dist / Math.max(actualFT, 0.1)) * dragCompensation;
 
   ball.vx = (dx / dist) * hSpeed;
   ball.vy = (dy / dist) * hSpeed;
@@ -190,16 +210,27 @@ export function getBallSide(ball) {
 export function predictLanding(ball) {
   let px = ball.x, py = ball.y, pz = ball.z, pvz = ball.vz;
   let pvx = ball.vx, pvy = ball.vy;
+  const spin = ball.spin || 0;
   const dt = 1 / 60;
   for (let i = 0; i < 180; i++) {
+    // Air drag while airborne
+    if (pz > 0) {
+      const drag = 1 - BALL.DRAG * dt;
+      pvx *= drag;
+      pvy *= drag;
+    }
     pvz += BALL.GRAVITY * dt;
+    if (pz > 0) {
+      pvz += spin * BALL.SPIN_CURVE * dt;
+    }
     pz += pvz * dt;
     px += pvx * dt;
     py += pvy * dt;
     if (pz <= 0) {
-      // Apply ground friction on first bounce (matches updateBall)
-      pvx *= 0.85;
-      pvy *= 0.85;
+      // Apply spin-dependent ground friction on first bounce (matches updateBall)
+      const spinFriction = 0.85 + spin * 0.15;
+      pvx *= spinFriction;
+      pvy *= spinFriction;
       return { x: px, y: py };
     }
   }

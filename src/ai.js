@@ -140,33 +140,35 @@ function tryHitBall(ai, opponent, ball, tier, rules) {
     COURT.X + COURT.WIDTH - margin
   );
 
-  let targetY, flightTime, arcMult;
+  let targetY, flightTime, arcMult, spin;
   const r = Math.random();
 
   if (tier.min >= 5.0) {
     // Pro: strategic variety
     if (r < 0.35) {
       targetY = COURT.NET_Y + COURT.KITCHEN_DEPTH + randRange(30, 80);
-      flightTime = 0.8; arcMult = 1.0; // fast drive
+      flightTime = 0.8; arcMult = 1.0; spin = 0.6; // fast drive (topspin)
     } else if (r < 0.65) {
       targetY = COURT.NET_Y + COURT.KITCHEN_DEPTH + randRange(10, 30);
-      flightTime = 0.9; arcMult = 1.0; // dink
+      flightTime = 0.9; arcMult = 1.0; spin = -0.3; // dink (backspin)
     } else {
       targetY = COURT.Y + COURT.HEIGHT - randRange(20, 50);
-      flightTime = 1.6; arcMult = 2.0; // lob
+      flightTime = 1.6; arcMult = 2.0; spin = 0.2; // lob (light topspin)
     }
   } else if (tier.min >= 3.0) {
     targetY = COURT.NET_Y + COURT.KITCHEN_DEPTH + randRange(25, 65);
     flightTime = 0.9 + Math.random() * 0.3;
     arcMult = 1.0 + Math.random() * 0.3;
+    spin = 0.3; // moderate topspin
   } else {
     // Beginner: consistent, safe shots to mid-court
     targetY = COURT.NET_Y + COURT.KITCHEN_DEPTH + randRange(30, 60);
     flightTime = 1.0 + Math.random() * 0.2;
     arcMult = 1.0 + Math.random() * 0.2;
+    spin = 0.0; // flat
   }
 
-  return { hit: true, targetX, targetY, flightTime, arcMult };
+  return { hit: true, targetX, targetY, flightTime, arcMult, spin };
 }
 
 export function aiServe(opponent, ball, serveSide) {

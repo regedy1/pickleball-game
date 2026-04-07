@@ -51,7 +51,7 @@ function playTone(freq, duration, type = 'square', gainNode = sfxGain, volume = 
 // SFX
 const SFX = {
   hit: () => playTone(440, 0.08, 'square'),
-  bounce: () => playTone(330, 0.06, 'triangle'),
+  bounce: (speed = 1) => playTone(330 + speed * 40, 0.06 + speed * 0.02, 'triangle'),
   fault: () => {
     playTone(150, 0.3, 'square', sfxGain, 0.4);
     setTimeout(() => playTone(100, 0.3, 'square', sfxGain, 0.3), 150);
@@ -71,10 +71,10 @@ const SFX = {
   },
 };
 
-export function playSFX(name) {
+export function playSFX(name, ...args) {
   if (!sfxEnabled || !SFX[name]) return;
   ensureInit();
-  SFX[name]();
+  SFX[name](...args);
 }
 
 // BGM — simple looping arpeggios

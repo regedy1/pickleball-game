@@ -106,6 +106,8 @@ export const BALL = {
   NET_HEIGHT: 8,
   SERVE_SPEED: 140,
   SERVE_VZ: 80,
+  DRAG: 0.35,         // per-second horizontal drag during flight
+  SPIN_CURVE: 30,     // how much spin affects vertical velocity (units/s²)
 };
 
 // Shot types
