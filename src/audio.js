@@ -51,11 +51,34 @@ function playTone(freq, duration, type = 'square', gainNode = sfxGain, volume = 
 // SFX
 const SFX = {
   hit: () => playTone(440, 0.08, 'square'),
+  smash: () => {
+    // Sharp, aggressive — clearly different from normal hit
+    playTone(220, 0.05, 'square', sfxGain, 0.45);
+    setTimeout(() => playTone(880, 0.08, 'sawtooth', sfxGain, 0.4), 30);
+  },
   bounce: () => playTone(330, 0.06, 'triangle'),
   fault: () => {
     playTone(150, 0.3, 'square', sfxGain, 0.4);
     setTimeout(() => playTone(100, 0.3, 'square', sfxGain, 0.3), 150);
   },
+  // YOU scored — bright, ascending, triumphant
+  scoreWin: () => {
+    playTone(659, 0.08, 'square', sfxGain, 0.4);
+    setTimeout(() => playTone(880, 0.08, 'square', sfxGain, 0.4), 80);
+    setTimeout(() => playTone(1175, 0.18, 'square', sfxGain, 0.4), 160);
+  },
+  // OPPONENT scored — dark, descending, sad
+  scoreLose: () => {
+    playTone(440, 0.12, 'sawtooth', sfxGain, 0.35);
+    setTimeout(() => playTone(330, 0.12, 'sawtooth', sfxGain, 0.35), 120);
+    setTimeout(() => playTone(220, 0.2, 'sawtooth', sfxGain, 0.3), 240);
+  },
+  // Side out (server changes) — neutral two-tone
+  sideOut: () => {
+    playTone(523, 0.1, 'triangle', sfxGain, 0.35);
+    setTimeout(() => playTone(392, 0.15, 'triangle', sfxGain, 0.35), 110);
+  },
+  // Legacy alias
   point: () => {
     playTone(523, 0.1, 'square');
     setTimeout(() => playTone(659, 0.1, 'square'), 100);

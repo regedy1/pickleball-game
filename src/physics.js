@@ -164,7 +164,9 @@ export function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = t
   vz *= Math.max(arcMult || 1.0, 1.0);
 
   // Horizontal speed from actual flight time → ball lands at target
-  const actualFT = 2 * vz / g;
+  // Solve 0 = z0 + vz*t - 0.5*g*t² for t (accounts for ball starting above ground)
+  const z0 = Math.max(ball.z, 3);
+  const actualFT = (vz + Math.sqrt(vz * vz + 2 * g * z0)) / g;
   const hSpeed = dist / Math.max(actualFT, 0.1);
 
   ball.vx = (dx / dist) * hSpeed;

@@ -28,6 +28,8 @@ let servePrompt = false, pendingGameEnd = null;
 let rallyCount = 0, lastShotFeedback = '', feedbackTimer = 0;
 let servePositioned = false, serveDelayTimer = 0;
 let playerSwingTimer = 0, aiSwingTimer = 0;
+let smashShakeTimer = 0;
+let shotBuffer = 0, shotBufferKey = null;
 
 // Single-button charge state
 let chargeTime = 0;
@@ -35,8 +37,10 @@ let isCharging = false;
 const MAX_CHARGE = 0.5; // seconds to reach max power
 const SOFT_THRESHOLD = 0.25; // hold < 0.25s = tap (soft shot: dink/drop/reset)
 
-// Aim crosshair — follows movement direction
+// Aim crosshair — follows movement direction, sticky after release
 let aimTarget = { x: 0, y: 0 };
+let aimStickyTimer = 0;
+const AIM_STICKY_DURATION = 1.0; // seconds to hold last aim after no input
 
 export const Gameplay = {
   enter(gameCtx) {
@@ -68,6 +72,7 @@ export const Gameplay = {
     chargeTime = 0; isCharging = false;
     servePositioned = false; serveDelayTimer = 0;
     playerSwingTimer = 0; aiSwingTimer = 0;
+    smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null; aimStickyTimer = 0;
     aimTarget = { x: COURT.CENTER_X, y: COURT.Y + COURT.HEIGHT / 4 };
 
     playBGM('gameplay');
@@ -83,6 +88,8 @@ export const Gameplay = {
     if (feedbackTimer > 0) { feedbackTimer -= dt; if (feedbackTimer <= 0) lastShotFeedback = ''; }
     if (playerSwingTimer > 0) playerSwingTimer -= dt;
     if (aiSwingTimer > 0) aiSwingTimer -= dt;
+    if (smashShakeTimer > 0) smashShakeTimer -= dt;
+    if (shotBuffer > 0) shotBuffer -= dt;
 
     // Fault display
     if (faultDisplay) {
@@ -106,7 +113,7 @@ export const Gameplay = {
     updatePlayerMovement(player, dt);
 
     // --- Update aim crosshair based on movement direction ---
-    updateAimTarget(player);
+    updateAimTarget(player, dt);
 
     // --- Serve ---
     if (rules.serveState === ServeState.WAITING) {
@@ -190,6 +197,10 @@ export const Gameplay = {
       // D: lob
       const ballOnPlayerSide = getBallSide(ball) === 'player';
       if (ball.lastHitBy !== 'player' && ballOnPlayerSide) {
+        // Drain shot buffer — re-attempt a queued shot now that ball may be in range
+        if (shotBuffer > 0 && shotBufferKey) {
+          executePlayerShot(player, gameCtx, shotBufferKey, true);
+        }
         // SPACE charge (soft/drive)
         if (isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
@@ -241,6 +252,16 @@ export const Gameplay = {
   },
 
   render(ctx, gameCtx) {
+    // Smash screen shake
+    let shakeX = 0, shakeY = 0;
+    if (smashShakeTimer > 0) {
+      const mag = (smashShakeTimer / 0.18) * 3;
+      shakeX = (Math.random() - 0.5) * mag * 2;
+      shakeY = (Math.random() - 0.5) * mag * 2;
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+    }
+
     drawCourt(ctx);
 
     // Landing marker
@@ -359,6 +380,8 @@ export const Gameplay = {
     if (!isTouchDevice()) {
       drawText(ctx, 'SPACE:TAP=SOFT HOLD=DRIVE  S:SMASH  D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
     }
+
+    if (smashShakeTimer > 0) ctx.restore();
   },
 };
 
@@ -366,35 +389,41 @@ export const Gameplay = {
 // AIM CROSSHAIR — follows movement direction
 // ============================================================
 
-function updateAimTarget(player) {
+function updateAimTarget(player, dt) {
   const pcx = player.x + PLAYER.WIDTH / 2;
+  const hasInput = isDown(KEYS.LEFT) || isDown(KEYS.RIGHT) || isDown(KEYS.UP) || isDown(KEYS.DOWN);
 
-  // Base: auto cross-court
+  // Sticky aim: when input stops, hold last aim for AIM_STICKY_DURATION
+  // (critical on mobile — you can't aim while running to the ball with one joystick)
+  if (hasInput) {
+    aimStickyTimer = AIM_STICKY_DURATION;
+  } else if (aimStickyTimer > 0) {
+    aimStickyTimer -= dt;
+    return; // freeze aim during sticky window
+  }
+
+  // Base: auto cross-court (only when no input AND sticky has expired)
   let tx = pcx < COURT.CENTER_X
-    ? COURT.CENTER_X + 40  // aim right
-    : COURT.CENTER_X - 40; // aim left
+    ? COURT.CENTER_X + 40
+    : COURT.CENTER_X - 40;
+  let ty = COURT.Y + COURT.HEIGHT * 0.25;
 
-  let ty = COURT.Y + COURT.HEIGHT * 0.25; // default mid-depth on opponent side
+  if (hasInput) {
+    if (isDown(KEYS.LEFT))  tx = COURT.X + COURT.WIDTH * 0.15;
+    if (isDown(KEYS.RIGHT)) tx = COURT.X + COURT.WIDTH * 0.85;
+    if (isDown(KEYS.UP))    ty = COURT.Y + 15;
+    if (isDown(KEYS.DOWN))  ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10;
+    if (isDown(KEYS.LEFT) && isDown(KEYS.UP))    { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.Y + 15; }
+    if (isDown(KEYS.RIGHT) && isDown(KEYS.UP))   { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.Y + 15; }
+    if (isDown(KEYS.LEFT) && isDown(KEYS.DOWN))  { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
+    if (isDown(KEYS.RIGHT) && isDown(KEYS.DOWN)) { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
+  }
 
-  // Arrow keys shift the aim target
-  if (isDown(KEYS.LEFT))  tx = COURT.X + COURT.WIDTH * 0.15;
-  if (isDown(KEYS.RIGHT)) tx = COURT.X + COURT.WIDTH * 0.85;
-  if (isDown(KEYS.UP))    ty = COURT.Y + 15;                    // deep
-  if (isDown(KEYS.DOWN))  ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; // short/kitchen
-
-  // Diagonals
-  if (isDown(KEYS.LEFT) && isDown(KEYS.UP))    { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.Y + 15; }
-  if (isDown(KEYS.RIGHT) && isDown(KEYS.UP))   { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.Y + 15; }
-  if (isDown(KEYS.LEFT) && isDown(KEYS.DOWN))  { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
-  if (isDown(KEYS.RIGHT) && isDown(KEYS.DOWN)) { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
-
-  // Smooth interpolation toward target
   aimTarget.x += (tx - aimTarget.x) * 0.15;
   aimTarget.y += (ty - aimTarget.y) * 0.15;
 
-  // Clamp to opponent's side
-  aimTarget.x = clamp(aimTarget.x, COURT.X + 10, COURT.X + COURT.WIDTH - 10);
-  aimTarget.y = clamp(aimTarget.y, COURT.Y + 5, COURT.NET_Y - 5);
+  aimTarget.x = clamp(aimTarget.x, COURT.X + 22, COURT.X + COURT.WIDTH - 22);
+  aimTarget.y = clamp(aimTarget.y, COURT.Y + 22, COURT.NET_Y - 8);
 }
 
 function drawAimCrosshair(ctx) {
@@ -447,14 +476,25 @@ function getShotPreview(player) {
   return power > 0.6 ? 'POWER DRIVE!' : 'DRIVE';
 }
 
-function executePlayerShot(player, gameCtx, shotKey = 'space') {
+function executePlayerShot(player, gameCtx, shotKey = 'space', fromBuffer = false) {
   const pcx = player.x + PLAYER.WIDTH / 2;
   const pcy = player.y + PLAYER.HEIGHT / 2;
 
-  // Hit radius: player sprite is 24x36, so center-to-edge is ~18px
-  // Ball should be within 28px of player center (tight but fair)
+  // Hit radius — slightly larger on touch (less precise input)
+  const hitRadius = isTouchDevice() ? 40 : 32;
   const dist = Math.sqrt(Math.pow(pcx - ball.x - 3, 2) + Math.pow(pcy - ball.y - 3, 2));
-  if (dist >= 30) return; // too far
+  if (dist >= hitRadius) {
+    // Out of range — only arm buffer on the *initial* press, never from a drain attempt
+    // (otherwise the buffer keeps re-arming itself and auto-fires when ball enters range)
+    if (!fromBuffer) {
+      shotBuffer = 0.15;
+      shotBufferKey = shotKey;
+    }
+    return;
+  }
+  // Consume buffer on success
+  shotBuffer = 0;
+  shotBufferKey = null;
 
   // Double-bounce check
   const nextRally = rules.rallyCount + 1;
@@ -486,13 +526,13 @@ function executePlayerShot(player, gameCtx, shotKey = 'space') {
     flightTime = 1.5; arcMult = 2.5; label = 'LOB'; safeNet = true;
 
   } else if (shotKey === 'smash') {
-    // S = SMASH: flat, fast, risky net (may clip)
-    // Smash targets MID-COURT (not baseline) to avoid going out
-    flightTime = 0.4; arcMult = 1.0; label = 'SMASH'; safeNet = false;
+    // S = SMASH: very flat, very fast, distinct from drive
+    flightTime = 0.28; arcMult = 1.0; label = 'SMASH!'; safeNet = false;
     if (power > 0.5) {
-      flightTime = 0.3;
+      flightTime = 0.22;
       label = 'POWER SMASH!';
     }
+    smashShakeTimer = 0.18;
 
   } else if (isTap) {
     // SPACE TAP = soft shot by position, safe net
@@ -523,22 +563,24 @@ function executePlayerShot(player, gameCtx, shotKey = 'space') {
   }
 
   // Target: crosshair X for horizontal, Y depends on shot type
-  let targetX = aimTarget.x + (Math.random() - 0.5) * 12;
+  // Spread reduced — was causing too many out-of-bounds shots
+  let targetX = aimTarget.x + (Math.random() - 0.5) * 6;
   let targetY;
 
   if (shotKey === 'lob') {
-    targetY = COURT.Y + 10 + Math.random() * 20;          // deep baseline
+    targetY = COURT.Y + 25 + Math.random() * 15;          // deep but with margin from baseline
   } else if (shotKey === 'smash') {
-    // Smash aims MID-COURT, not deep — prevents going out
-    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH - 20 + Math.random() * 40;
+    // Smash aims MID-COURT for safety
+    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH - 25 + Math.random() * 30;
   } else if (isTap) {
-    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH + 5 + Math.random() * (COURT.KITCHEN_DEPTH - 5);
+    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH + 5 + Math.random() * (COURT.KITCHEN_DEPTH - 8);
   } else {
-    targetY = aimTarget.y + (Math.random() - 0.5) * 12;   // drive: follow crosshair
+    targetY = aimTarget.y + (Math.random() - 0.5) * 6;   // drive: follow crosshair tightly
   }
 
-  targetX = clamp(targetX, COURT.X + 15, COURT.X + COURT.WIDTH - 15);
-  targetY = clamp(targetY, COURT.Y + 10, COURT.NET_Y - 5);
+  // Generous in-bounds margin so RNG/physics jitter doesn't push shots out
+  targetX = clamp(targetX, COURT.X + 22, COURT.X + COURT.WIDTH - 22);
+  targetY = clamp(targetY, COURT.Y + 22, COURT.NET_Y - 8);
 
   showFeedback(label);
   hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet);
@@ -548,7 +590,7 @@ function executePlayerShot(player, gameCtx, shotKey = 'space') {
   player.animState = player.swingSide || 'forehand';
   player.animFrame = 0;
   playerSwingTimer = 0.25;
-  playSFX('hit');
+  playSFX(shotKey === 'smash' ? 'smash' : 'hit');
 }
 
 // ============================================================
@@ -667,17 +709,18 @@ function triggerFault(reason, against, gameCtx) {
   scorePoint(gameCtx.score, rules, pointWinner);
 
   if (pointWinner === wasServing) {
-    // Server scored — emotional message
+    // Server scored — emotional message + outcome-specific SFX
     if (pointWinner === 'player') {
       faultDisplay = getEmotionalMsg(WINNER_MSGS);
+      playSFX('scoreWin');
     } else {
       faultDisplay = getEmotionalMsg(LOSER_MSGS);
+      playSFX('scoreLose');
     }
-    playSFX('point');
   } else {
-    // Side out
+    // Side out — neutral, but flag if YOU lost the serve
     faultDisplay = getEmotionalMsg(SIDE_OUT_MSGS);
-    playSFX('fault');
+    playSFX(pointWinner === 'player' ? 'scoreWin' : 'sideOut');
   }
   faultTimer = 1.5;
 
@@ -700,6 +743,8 @@ function resetForPoint(gameCtx) {
   servePrompt = true; servePositioned = false; serveDelayTimer = 0;
   rallyCount = 0; isCharging = false; chargeTime = 0;
   playerSwingTimer = 0; aiSwingTimer = 0;
+  smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null;
+  aimStickyTimer = 0;
 
   // Position both players at baseline on correct side for next serve
   const nextServeSide = getServeSide(gameCtx.score, gameCtx.score.serving);
