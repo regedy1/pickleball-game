@@ -30,6 +30,7 @@ let servePositioned = false, serveDelayTimer = 0;
 let playerSwingTimer = 0, aiSwingTimer = 0;
 let smashShakeTimer = 0;
 let shotBuffer = 0, shotBufferKey = null;
+let bounceFx = []; // {x, y, age, maxAge, side, mark}
 
 // Single-button charge state
 let chargeTime = 0;
@@ -73,6 +74,7 @@ export const Gameplay = {
     servePositioned = false; serveDelayTimer = 0;
     playerSwingTimer = 0; aiSwingTimer = 0;
     smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null; aimStickyTimer = 0;
+    bounceFx = [];
     aimTarget = { x: COURT.CENTER_X, y: COURT.Y + COURT.HEIGHT / 4 };
 
     playBGM('gameplay');
@@ -90,6 +92,12 @@ export const Gameplay = {
     if (aiSwingTimer > 0) aiSwingTimer -= dt;
     if (smashShakeTimer > 0) smashShakeTimer -= dt;
     if (shotBuffer > 0) shotBuffer -= dt;
+
+    // Tick bounce effects
+    for (let i = bounceFx.length - 1; i >= 0; i--) {
+      bounceFx[i].age += dt;
+      if (bounceFx[i].age >= bounceFx[i].maxAge) bounceFx.splice(i, 1);
+    }
 
     // Fault display
     if (faultDisplay) {
@@ -164,11 +172,13 @@ export const Gameplay = {
       const result = updateBall(ball, dt);
 
       if (rules.serveState === ServeState.SERVED && ball.bounced) {
+        spawnBounceFx(ball.x, ball.y, getBallSide(ball));
         onBallBounce(rules, getBallSide(ball));
         ball.bounced = false;
         playSFX('bounce');
       }
       if (rules.serveState === ServeState.IN_PLAY && ball.bounced) {
+        spawnBounceFx(ball.x, ball.y, getBallSide(ball));
         onBallBounce(rules, getBallSide(ball));
         ball.bounced = false;
         playSFX('bounce');
@@ -264,6 +274,9 @@ export const Gameplay = {
 
     drawCourt(ctx);
 
+    // Bounce effects sit on the floor — drawn after court, before player/ball
+    drawBounceFx(ctx);
+
     // Landing marker
     if (ball.active && !ball.landed && ball.z > 3) {
       drawLandingMarker(ctx);
@@ -282,6 +295,30 @@ export const Gameplay = {
     if (aiSwingTimer > 0) {
       gameCtx.opponent.animState = 'forehand';
       gameCtx.opponent.animFrame = aiSwingTimer > 0.15 ? 1 : 2;
+    }
+
+    // Double-bounce rule indicator — show "LET IT BOUNCE!" when rule is active
+    // Player must let serve bounce on first return, server must let return bounce on second hit
+    if (ball.active && !ball.landed && rules.rallyCount <= 2) {
+      const ballOnPlayerSide = getBallSide(ball) === 'player';
+      const playerMustWait = ballOnPlayerSide
+        && ball.lastHitBy !== 'player'
+        && rules.bounceCount.player === 0
+        && !rules.doubleBounceCleared.player;
+      if (playerMustWait) {
+        const blink = Math.floor(Date.now() / 200) % 2 === 0;
+        if (blink) {
+          drawTextCentered(ctx, 'LET IT BOUNCE!', INTERNAL_WIDTH / 2, COURT.Y + COURT.HEIGHT + 8, PALETTE.YELLOW, 1);
+        }
+        // Bounce-required marker over player
+        const px = Math.floor(gameCtx.player.x + PLAYER.WIDTH / 2);
+        const py = Math.floor(gameCtx.player.y) - 8;
+        ctx.fillStyle = blink ? PALETTE.YELLOW : 'rgba(244,211,94,0.5)';
+        ctx.fillRect(px - 4, py, 9, 1);
+        ctx.fillRect(px - 4, py + 4, 9, 1);
+        ctx.fillRect(px - 4, py + 1, 1, 3);
+        ctx.fillRect(px + 4, py + 1, 1, 3);
+      }
     }
 
     // Kitchen zone warning — highlight when player is in the kitchen
@@ -451,11 +488,61 @@ function drawLandingMarker(ctx) {
   const landing = predictLanding(ball);
   const mx = Math.floor(landing.x);
   const my = Math.floor(landing.y);
-  ctx.fillStyle = 'rgba(255,100,100,0.35)';
-  ctx.fillRect(mx - 3, my, 7, 1);
-  ctx.fillRect(mx, my - 3, 1, 7);
+  // Pulse stronger as ball gets closer to landing (low z = bigger marker)
+  const closeness = Math.max(0, 1 - ball.z / 40); // 0..1
+  const size = 3 + Math.floor(closeness * 2);
+  const alpha = 0.35 + closeness * 0.4;
+  ctx.fillStyle = `rgba(255,100,100,${alpha})`;
+  ctx.fillRect(mx - size, my, size * 2 + 1, 1);
+  ctx.fillRect(mx, my - size, 1, size * 2 + 1);
   ctx.fillRect(mx - 2, my - 1, 5, 3);
   ctx.fillRect(mx - 1, my - 2, 3, 5);
+}
+
+// ============================================================
+// BOUNCE EFFECT — expanding ring + fading floor mark
+// ============================================================
+
+function spawnBounceFx(x, y, side) {
+  bounceFx.push({
+    x: Math.floor(x + 3), // ball is 6px wide, center
+    y: Math.floor(y + 3),
+    age: 0,
+    maxAge: 0.55,
+    side,
+  });
+}
+
+function drawBounceFx(ctx) {
+  for (const fx of bounceFx) {
+    const t = fx.age / fx.maxAge; // 0..1
+    const ring = Math.floor(2 + t * 12); // expand 2 → 14px
+    const alpha = (1 - t) * 0.7;
+
+    // Outer expanding ring (white/yellow flash)
+    ctx.fillStyle = `rgba(255, 240, 120, ${alpha * 0.9})`;
+    // Top + bottom lines of the ring
+    ctx.fillRect(fx.x - ring, fx.y, ring * 2 + 1, 1);
+    ctx.fillRect(fx.x, fx.y - Math.floor(ring * 0.5), 1, Math.floor(ring) + 1);
+    ctx.fillRect(fx.x, fx.y + Math.floor(ring * 0.5) - 1, 1, 2);
+    // Side dots (elliptical)
+    const half = Math.floor(ring * 0.7);
+    ctx.fillRect(fx.x - half - 1, fx.y - 1, 2, 2);
+    ctx.fillRect(fx.x + half, fx.y - 1, 2, 2);
+
+    // Persistent floor mark (faint, lasts whole effect) — shows WHERE the bounce was
+    const markAlpha = (1 - t) * 0.35;
+    ctx.fillStyle = `rgba(255,255,255,${markAlpha})`;
+    ctx.fillRect(fx.x - 1, fx.y - 1, 3, 3);
+
+    // Inner bright flash for first 30% of effect
+    if (t < 0.3) {
+      const flashA = (1 - t / 0.3) * 0.9;
+      ctx.fillStyle = `rgba(255,255,255,${flashA})`;
+      ctx.fillRect(fx.x - 2, fx.y - 1, 5, 3);
+      ctx.fillRect(fx.x - 1, fx.y - 2, 3, 5);
+    }
+  }
 }
 
 // ============================================================
@@ -745,6 +832,7 @@ function resetForPoint(gameCtx) {
   playerSwingTimer = 0; aiSwingTimer = 0;
   smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null;
   aimStickyTimer = 0;
+  bounceFx = [];
 
   // Position both players at baseline on correct side for next serve
   const nextServeSide = getServeSide(gameCtx.score, gameCtx.score.serving);

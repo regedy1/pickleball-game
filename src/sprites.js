@@ -327,24 +327,27 @@ export function drawBallSprite(ctx, x, y, z, vx = 0, vy = 0) {
   const px = Math.floor(x);
   const py = Math.floor(y);
   const height = Math.max(0, z);
-  const ballRise = Math.floor(height * 0.3); // pixels the ball rises visually
+  const ballRise = Math.floor(height * 0.35); // slightly more rise per unit z (was 0.3)
 
-  ballTrail.push({ x: px, y: py });
-  if (ballTrail.length > 5) ballTrail.shift();
+  ballTrail.push({ x: px, y: py, z: height });
+  if (ballTrail.length > 7) ballTrail.shift(); // longer trail (was 5)
 
-  // Trail (follows the elevated ball position)
+  // Trail (follows the elevated ball position) — brighter & longer for visibility
   for (let i = 0; i < ballTrail.length - 1; i++) {
     const t = ballTrail[i];
-    const alpha = (i + 1) / ballTrail.length * 0.25;
-    const size = Math.max(1, Math.floor(3 * (i + 1) / ballTrail.length));
+    const tRise = Math.floor(t.z * 0.35);
+    const progress = (i + 1) / ballTrail.length;
+    const alpha = progress * 0.5; // was 0.25 — brighter trail
+    const size = Math.max(1, Math.floor(4 * progress));
     ctx.fillStyle = `rgba(249, 199, 79, ${alpha})`;
-    ctx.fillRect(t.x + 1, t.y + 1 - ballRise, size, size);
+    ctx.fillRect(t.x + 1, t.y + 1 - tRise, size, size);
   }
 
   // === GROUND SHADOW (stays at ground, GROWS larger + fainter with height) ===
-  const shadowGrow = 1.0 + height * 0.02; // shadow spreads with height
-  const shadowAlpha = Math.max(0.06, 0.45 - height * 0.003); // fainter with height
-  const shadowW = Math.max(4, Math.floor(8 * shadowGrow));
+  // Stronger contrast at low altitudes so impact is obvious
+  const shadowGrow = 1.0 + height * 0.025;
+  const shadowAlpha = Math.max(0.1, 0.6 - height * 0.005); // darker baseline
+  const shadowW = Math.max(5, Math.floor(9 * shadowGrow));
   const shadowH = Math.max(2, Math.floor(3 * shadowGrow));
   const shadowX = px + 3 - Math.floor(shadowW / 2);
   const shadowY = py + 4;
@@ -360,9 +363,15 @@ export function drawBallSprite(ctx, x, y, z, vx = 0, vy = 0) {
   }
 
   // === Vertical line connecting ball to shadow (height indicator) ===
-  if (ballRise > 4) {
-    ctx.fillStyle = `rgba(0,0,0,${Math.min(0.15, shadowAlpha * 0.3)})`;
+  // Made more visible — was nearly invisible
+  if (ballRise > 3) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.3, 0.12 + height * 0.003)})`;
     ctx.fillRect(px + 3, py + 3 - ballRise, 1, ballRise);
+    // Tick marks every 6px so you can read altitude at a glance
+    for (let h = 6; h < ballRise; h += 6) {
+      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.4, 0.2 + height * 0.003)})`;
+      ctx.fillRect(px + 2, py + 3 - h, 3, 1);
+    }
   }
 
   // === BALL (elevated by height) ===
