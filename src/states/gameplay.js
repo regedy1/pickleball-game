@@ -767,13 +767,26 @@ function performPlayerServe(player, power = 1.0) {
   const serveX = player.x + PLAYER.WIDTH / 2;
   const serveY = player.y;
   const serveSide = getServeSide(currentScore, rules.serving);
-  const targetX = serveSide === 'right'
-    ? COURT.X + COURT.WIDTH * 0.1 + Math.random() * (COURT.WIDTH * 0.3)
-    : COURT.X + COURT.WIDTH * 0.6 + Math.random() * (COURT.WIDTH * 0.3);
-  const targetY = COURT.Y + 20 + Math.random() * (COURT.NET_Y - COURT.KITCHEN_DEPTH - COURT.Y - 30);
 
-  serveBall(ball, serveX, serveY, targetX, targetY);
-  if (power > 1.3) showFeedback('POWER SERVE!');
+  // Power 1.0 (tap) → soft, short serve just past kitchen line
+  // Power 1.5 (full hold) → fast, deep serve at baseline
+  const t = clamp((power - 1.0) / 0.5, 0, 1); // 0..1
+  const shortDepth = COURT.NET_Y - COURT.KITCHEN_DEPTH - 12; // just past kitchen
+  const deepDepth = COURT.Y + 25;                            // baseline area
+  const targetY = shortDepth - (shortDepth - deepDepth) * t + (Math.random() - 0.5) * 10;
+
+  // Service-box X (cross-court, narrower spread on soft serves)
+  const xSpread = 0.2 + 0.15 * t; // tap=0.2, hold=0.35
+  const targetX = serveSide === 'right'
+    ? COURT.X + COURT.WIDTH * 0.12 + Math.random() * (COURT.WIDTH * xSpread)
+    : COURT.X + COURT.WIDTH * (0.88 - xSpread) + Math.random() * (COURT.WIDTH * xSpread);
+
+  // Flight time: soft tap is slow & arcing, full hold is fast & flat
+  const flightTime = 1.2 - t * 0.5; // 1.2s → 0.7s
+
+  serveBall(ball, serveX, serveY, targetX, targetY, 'player', flightTime);
+  if (power >= 1.4) showFeedback('POWER SERVE!');
+  else if (power <= 1.05) showFeedback('SOFT SERVE');
   onServe(rules); rallyCount = 0; playSFX('serve');
 }
 

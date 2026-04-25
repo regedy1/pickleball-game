@@ -97,7 +97,7 @@ function checkBallBoundaries(ball) {
   return result;
 }
 
-export function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player') {
+export function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player', flightTime = 1.0) {
   ball.x = fromX;
   ball.y = fromY;
   ball.z = 8;
@@ -113,14 +113,15 @@ export function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player
   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
   const g = Math.abs(BALL.GRAVITY);
 
-  // Serve flight time ~1.0s
-  const flightTime = 1.0;
-  let vz = 0.5 * g * flightTime;
+  const ft = Math.max(flightTime, 0.4);
+  let vz = 0.5 * g * ft;
   // Ensure net clearance
   const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 10));
   vz = Math.max(vz, minVz);
 
-  const actualFlightTime = 2 * vz / g;
+  // Quadratic solve: ball lands at z=0 starting from z=ball.z (was overshooting before)
+  const z0 = ball.z;
+  const actualFlightTime = (vz + Math.sqrt(vz * vz + 2 * g * z0)) / g;
   const hSpeed = dist / Math.max(actualFlightTime, 0.1);
 
   ball.vx = (dx / dist) * hSpeed;
