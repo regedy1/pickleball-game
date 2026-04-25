@@ -31,6 +31,7 @@ let playerSwingTimer = 0, aiSwingTimer = 0;
 let smashShakeTimer = 0;
 let shotBuffer = 0, shotBufferKey = null;
 let bounceFx = []; // {x, y, age, maxAge, side, mark}
+let inputArmed = false; // false until SMASH key is seen released — prevents stale touch from auto-serving on entry
 
 // Single-button charge state
 let chargeTime = 0;
@@ -75,6 +76,7 @@ export const Gameplay = {
     playerSwingTimer = 0; aiSwingTimer = 0;
     smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null; aimStickyTimer = 0;
     bounceFx = [];
+    inputArmed = false; // require SMASH key to be RELEASED first before any serve/shot fires
     aimTarget = { x: COURT.CENTER_X, y: COURT.Y + COURT.HEIGHT / 4 };
 
     playBGM('gameplay');
@@ -117,6 +119,14 @@ export const Gameplay = {
 
     if (hintTimer > 0) { hintTimer -= dt; if (hintTimer <= 0) hintText = ''; }
 
+    // Arm input only once the SMASH key is observed NOT down. This catches the
+    // case where the player tapped a SHOT-mapped touch button to enter gameplay
+    // (mode-select → gameplay) and the lingering release would otherwise
+    // auto-fire a serve on frame 1.
+    if (!inputArmed && !isDown(KEYS.SMASH) && !isDown(KEYS.POWER_SMASH)) {
+      inputArmed = true;
+    }
+
     // --- Movement (always active) ---
     updatePlayerMovement(player, dt);
 
@@ -138,18 +148,18 @@ export const Gameplay = {
         const halfMax = serveSide === 'right' ? COURT.X + COURT.WIDTH - PLAYER.WIDTH : COURT.CENTER_X - PLAYER.WIDTH;
         player.x = clamp(player.x, halfMin, halfMax);
 
-        // Hold SPACE for power serve, tap for quick serve
-        if (isDown(KEYS.SMASH)) {
+        // Hold SPACE for power serve, tap for quick serve — gated on inputArmed
+        if (inputArmed && isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
           chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
           servePrompt = false;
         }
-        if (isCharging && isReleased(KEYS.SMASH)) {
+        if (inputArmed && isCharging && isReleased(KEYS.SMASH)) {
           const power = 1.0 + (chargeTime / MAX_CHARGE) * 0.5; // 1.0 - 1.5x
           performPlayerServe(player, power);
           isCharging = false; chargeTime = 0;
           servePositioned = false;
-        } else if (!isCharging && isReleased(KEYS.SMASH) && isPressed(KEYS.SMASH)) {
+        } else if (inputArmed && !isCharging && isReleased(KEYS.SMASH) && isPressed(KEYS.SMASH)) {
           // Instant tap serve (common on mobile touch)
           performPlayerServe(player, 1.0);
           isCharging = false; chargeTime = 0;
@@ -206,7 +216,7 @@ export const Gameplay = {
       // S: tap=smash, hold=power smash
       // D: lob
       const ballOnPlayerSide = getBallSide(ball) === 'player';
-      if (ball.lastHitBy !== 'player' && ballOnPlayerSide) {
+      if (inputArmed && ball.lastHitBy !== 'player' && ballOnPlayerSide) {
         // Drain shot buffer — re-attempt a queued shot now that ball may be in range
         if (shotBuffer > 0 && shotBufferKey) {
           executePlayerShot(player, gameCtx, shotBufferKey, true);

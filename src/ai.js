@@ -119,7 +119,12 @@ function tryHitBall(ai, opponent, ball, tier, rules) {
     if (rules.bounceCount.opponent === 0) {
       return null; // Ball hasn't bounced on AI's side yet — WAIT
     }
+    // Ball just bounced — let it rise a bit so the bounce is visually clear
+    // (otherwise AI hits on the same frame as the bounce and looks like it skipped it)
+    if (ball.z < 6) return null;
   }
+  // Universal anti-snap: never hit on the exact bounce frame
+  if (ball.z < 2 && ball.vz > 0) return null;
 
   // Very low whiff rate
   const whiffChance = tier.errorRate * 0.08;
