@@ -2,29 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>PICKLE SMASH</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
-html,body{background:#000;display:flex;justify-content:center;align-items:center;height:100%;overflow:hidden;touch-action:none;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none;overscroll-behavior:none;position:fixed;width:100%}
+body{background:#000;display:flex;justify-content:center;align-items:center;height:100vh;overflow:hidden}
 canvas{image-rendering:pixelated;image-rendering:crisp-edges;-ms-interpolation-mode:nearest-neighbor}
-#touch-controls{position:fixed;top:0;left:0;right:0;bottom:0;pointer-events:none;z-index:10;display:none}
-#touch-controls .btn{pointer-events:auto;position:absolute;border-radius:50%;background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.7);font-family:monospace;font-weight:bold;font-size:3vw;-webkit-tap-highlight-color:transparent;transition:background 0.08s,border-color 0.08s}
-#touch-controls .btn.active{background:rgba(255,255,255,0.35);border-color:rgba(255,255,255,0.6)}
-#joystick-zone{pointer-events:auto;position:absolute;left:0;top:0;width:40%;height:100%}
-#joystick-base{position:absolute;width:min(30vw,40vh);height:min(30vw,40vh);border-radius:50%;background:rgba(255,255,255,0.06);border:2px solid rgba(255,255,255,0.12);display:none;pointer-events:none}
-#joystick-knob{position:absolute;width:min(10vw,14vh);height:min(10vw,14vh);border-radius:50%;background:rgba(255,255,255,0.35);border:2px solid rgba(255,255,255,0.55);display:none;pointer-events:none}
-#rotate-prompt{display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:#000;color:#fff;font-family:monospace;font-size:5vw;flex-direction:column;align-items:center;justify-content:center;z-index:100;gap:3vh}
-#rotate-prompt .rotate-icon{font-size:15vw}
-@media(orientation:portrait) and (hover:none) and (pointer:coarse){#rotate-prompt{display:flex!important}#touch-controls,canvas{display:none!important}}
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
-<div id="touch-controls"><div id="joystick-zone"><div id="joystick-base"></div><div id="joystick-knob"></div></div></div>
-<div id="rotate-prompt"><div class="rotate-icon">&#x21BB;</div><div>ROTATE YOUR DEVICE</div><div style="font-size:3vw;opacity:0.6">LANDSCAPE MODE REQUIRED</div></div>
 <script>
 (function(){
 
@@ -158,18 +145,19 @@ const SHOT_CONFIG = {
 };
 
 // Key bindings
-// SPACE: tap=soft shot (dink/drop/reset), hold=drive (power bar)
-// S: tap=smash, hold=power smash
-// D: lob
-// Arrows: move + aim crosshair
+// SPACE: serve / smash (single=normal, double-tap=power)
+// D: dink (single=center, double-tap+L/R=aimed)
+// S: lob/drop (single=drop, double-tap=far lob)
+// A: reset shot
+// Arrows: move (hold=run)
 const KEYS = {
   UP: 'ArrowUp',
   DOWN: 'ArrowDown',
   LEFT: 'ArrowLeft',
   RIGHT: 'ArrowRight',
   SMASH: ' ',
-  POWER_SMASH: 's',
-  LOB: 'd',
+  DINK: 'd',
+  LOB: 's',
   RESET: 'a',
   SERVE: ' ',
   CONFIRM: 'Enter',
@@ -195,18 +183,13 @@ const SCORING = {
   BEST_OF: 3,
 };
 
-// Avatars — M=male, F=female
+// Avatars
 const AVATARS = [
-  { name: 'Ace',      color: PALETTE.LIGHT_BLUE,  gender: 'male' },
-  { name: 'Blaze',    color: PALETTE.ORANGE,       gender: 'male' },
-  { name: 'Spike',    color: PALETTE.YELLOW,        gender: 'male' },
-  { name: 'Dash',     color: PALETTE.RED,            gender: 'male' },
-  { name: 'Zen',      color: PALETTE.COURT_GREEN,   gender: 'male' },
-  { name: 'Luna',     color: '#e879a8',              gender: 'female' },
-  { name: 'Nova',     color: '#9b59b6',              gender: 'female' },
-  { name: 'Ivy',      color: '#2ecc71',              gender: 'female' },
-  { name: 'Ruby',     color: '#e74c3c',              gender: 'female' },
-  { name: 'Sky',      color: '#5dade2',              gender: 'female' },
+  { name: 'Ace',    color: PALETTE.LIGHT_BLUE },
+  { name: 'Blaze',  color: PALETTE.ORANGE },
+  { name: 'Spike',  color: PALETTE.YELLOW },
+  { name: 'Dash',   color: PALETTE.RED },
+  { name: 'Zen',    color: PALETTE.COURT_GREEN },
 ];
 
 // === src/utils.js ===
@@ -289,327 +272,6 @@ function isPressed(key) {
 
 function isReleased(key) {
   return !!releasedThisFrame[key];
-}
-
-// Touch input injection — lets touch.js feed into the same key state system
-function simulateKeyDown(key) {
-  if (!keysDown[key]) {
-    keysDown[key] = true;
-    pressedThisFrame[key] = true;
-  }
-}
-
-function simulateKeyUp(key) {
-  keysDown[key] = false;
-  releasedThisFrame[key] = true;
-}
-
-// === src/touch.js ===
-// ============================================================
-// TOUCH CONTROLS — Virtual joystick + action buttons
-// Injects into input.js key state system via simulateKeyDown/Up
-// ============================================================
-
-
-function isTouchDevice() {
-  return ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
-}
-
-// --- State ---
-let joystickTouchId = null;
-let joystickBaseX = 0;
-let joystickBaseY = 0;
-let joystickMaxRadius = 60; // recalculated on init from visual size
-const joystickDeadZone = 0.2; // 20% dead zone — prevents drift
-let activeJoystickKeys = new Set();
-const buttonTouchMap = new Map(); // touchId -> key
-
-// --- DOM refs ---
-let container = null;
-let joystickZone = null;
-let joystickBase = null;
-let joystickKnob = null;
-
-// --- Button creation ---
-function createButton(id, label, cssProps) {
-  const btn = document.createElement('div');
-  btn.className = 'btn';
-  btn.id = id;
-  btn.textContent = label;
-  Object.assign(btn.style, cssProps);
-  return btn;
-}
-
-// --- Joystick direction mapping ---
-function getKeysFromAngle(angle, magnitude) {
-  if (magnitude < joystickDeadZone) return [];
-
-  const deg = ((angle * 180 / Math.PI) + 360) % 360;
-  // 8 zones, 45 degrees each
-  if (deg >= 337.5 || deg < 22.5) return [KEYS.RIGHT];
-  if (deg >= 22.5 && deg < 67.5) return [KEYS.RIGHT, KEYS.DOWN];
-  if (deg >= 67.5 && deg < 112.5) return [KEYS.DOWN];
-  if (deg >= 112.5 && deg < 157.5) return [KEYS.LEFT, KEYS.DOWN];
-  if (deg >= 157.5 && deg < 202.5) return [KEYS.LEFT];
-  if (deg >= 202.5 && deg < 247.5) return [KEYS.LEFT, KEYS.UP];
-  if (deg >= 247.5 && deg < 292.5) return [KEYS.UP];
-  if (deg >= 292.5 && deg < 337.5) return [KEYS.RIGHT, KEYS.UP];
-  return [];
-}
-
-function updateJoystickDirection(touchX, touchY) {
-  const dx = touchX - joystickBaseX;
-  const dy = touchY - joystickBaseY;
-  const dist = Math.sqrt(dx * dx + dy * dy);
-  const magnitude = Math.min(dist / joystickMaxRadius, 1);
-  const angle = Math.atan2(dy, dx);
-
-  // Clamp knob to max radius
-  const clampedDist = Math.min(dist, joystickMaxRadius);
-  const knobX = joystickBaseX + (dx / (dist || 1)) * clampedDist;
-  const knobY = joystickBaseY + (dy / (dist || 1)) * clampedDist;
-
-  const knobSize = joystickKnob.offsetWidth;
-  joystickKnob.style.left = (knobX - knobSize / 2) + 'px';
-  joystickKnob.style.top = (knobY - knobSize / 2) + 'px';
-
-  const newKeys = new Set(getKeysFromAngle(angle, magnitude));
-
-  for (const key of activeJoystickKeys) {
-    if (!newKeys.has(key)) simulateKeyUp(key);
-  }
-  for (const key of newKeys) {
-    if (!activeJoystickKeys.has(key)) simulateKeyDown(key);
-  }
-  activeJoystickKeys = newKeys;
-}
-
-function releaseAllJoystickKeys() {
-  for (const key of activeJoystickKeys) {
-    simulateKeyUp(key);
-  }
-  activeJoystickKeys = new Set();
-}
-
-function showJoystick(x, y) {
-  joystickBase.style.display = 'block';
-  joystickKnob.style.display = 'block';
-
-  // Sync functional radius to visual radius
-  const baseSize = joystickBase.offsetWidth;
-  joystickMaxRadius = (baseSize / 2) * 0.85; // 85% of visual — knob stays inside
-
-  joystickBase.style.left = (x - baseSize / 2) + 'px';
-  joystickBase.style.top = (y - baseSize / 2) + 'px';
-
-  const knobSize = joystickKnob.offsetWidth;
-  joystickKnob.style.left = (x - knobSize / 2) + 'px';
-  joystickKnob.style.top = (y - knobSize / 2) + 'px';
-}
-
-function hideJoystick() {
-  joystickBase.style.display = 'none';
-  joystickKnob.style.display = 'none';
-}
-
-// --- Fullscreen on first touch ---
-let hasRequestedFullscreen = false;
-function tryFullscreen() {
-  if (hasRequestedFullscreen) return;
-  hasRequestedFullscreen = true;
-  const el = document.documentElement;
-  const rfs = el.requestFullscreen || el.webkitRequestFullscreen || el.msRequestFullscreen;
-  if (rfs) rfs.call(el).catch(() => {});
-  if (screen.orientation && screen.orientation.lock) {
-    screen.orientation.lock('landscape').catch(() => {});
-  }
-}
-
-// --- Button touch handlers ---
-function setupButtonTouch(btn, key) {
-  function onStart(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    tryFullscreen();
-    for (const touch of e.changedTouches) {
-      if ([...buttonTouchMap.values()].includes(key)) continue;
-      buttonTouchMap.set(touch.identifier, key);
-      simulateKeyDown(key);
-      btn.classList.add('active');
-    }
-  }
-
-  function onEnd(e) {
-    e.preventDefault();
-    e.stopPropagation();
-    for (const touch of e.changedTouches) {
-      if (buttonTouchMap.get(touch.identifier) === key) {
-        buttonTouchMap.delete(touch.identifier);
-        simulateKeyUp(key);
-        btn.classList.remove('active');
-      }
-    }
-  }
-
-  btn.addEventListener('touchstart', onStart, { passive: false });
-  btn.addEventListener('touchend', onEnd, { passive: false });
-  btn.addEventListener('touchcancel', onEnd, { passive: false });
-
-  // Pointer events fallback (DevTools touch simulation, some browsers)
-  btn.addEventListener('pointerdown', (e) => {
-    e.preventDefault();
-    if ([...buttonTouchMap.values()].includes(key)) return;
-    simulateKeyDown(key);
-    btn.classList.add('active');
-    buttonTouchMap.set(e.pointerId, key);
-  });
-  btn.addEventListener('pointerup', (e) => {
-    e.preventDefault();
-    if (buttonTouchMap.get(e.pointerId) === key) {
-      buttonTouchMap.delete(e.pointerId);
-      simulateKeyUp(key);
-      btn.classList.remove('active');
-    }
-  });
-  btn.addEventListener('pointercancel', (e) => {
-    if (buttonTouchMap.get(e.pointerId) === key) {
-      buttonTouchMap.delete(e.pointerId);
-      simulateKeyUp(key);
-      btn.classList.remove('active');
-    }
-  });
-}
-
-// --- Joystick touch handlers ---
-function setupJoystickTouch() {
-  joystickZone.addEventListener('touchstart', (e) => {
-    e.preventDefault();
-    tryFullscreen();
-    if (joystickTouchId !== null) return;
-    const touch = e.changedTouches[0];
-    joystickTouchId = touch.identifier;
-    joystickBaseX = touch.clientX;
-    joystickBaseY = touch.clientY;
-    showJoystick(touch.clientX, touch.clientY);
-    updateJoystickDirection(touch.clientX, touch.clientY);
-  }, { passive: false });
-
-  joystickZone.addEventListener('touchmove', (e) => {
-    e.preventDefault();
-    for (const touch of e.changedTouches) {
-      if (touch.identifier === joystickTouchId) {
-        updateJoystickDirection(touch.clientX, touch.clientY);
-      }
-    }
-  }, { passive: false });
-
-  const endJoystick = (e) => {
-    e.preventDefault();
-    for (const touch of e.changedTouches) {
-      if (touch.identifier === joystickTouchId) {
-        joystickTouchId = null;
-        releaseAllJoystickKeys();
-        hideJoystick();
-      }
-    }
-  };
-  joystickZone.addEventListener('touchend', endJoystick, { passive: false });
-  joystickZone.addEventListener('touchcancel', endJoystick, { passive: false });
-
-  // Pointer events fallback
-  joystickZone.addEventListener('pointerdown', (e) => {
-    if (e.pointerType === 'mouse') return;
-    e.preventDefault();
-    tryFullscreen();
-    if (joystickTouchId !== null) return;
-    joystickTouchId = e.pointerId;
-    joystickBaseX = e.clientX;
-    joystickBaseY = e.clientY;
-    showJoystick(e.clientX, e.clientY);
-    updateJoystickDirection(e.clientX, e.clientY);
-    joystickZone.setPointerCapture(e.pointerId);
-  });
-  joystickZone.addEventListener('pointermove', (e) => {
-    if (e.pointerId === joystickTouchId) {
-      updateJoystickDirection(e.clientX, e.clientY);
-    }
-  });
-  const endPointerJoystick = (e) => {
-    if (e.pointerId === joystickTouchId) {
-      joystickTouchId = null;
-      releaseAllJoystickKeys();
-      hideJoystick();
-    }
-  };
-  joystickZone.addEventListener('pointerup', endPointerJoystick);
-  joystickZone.addEventListener('pointercancel', endPointerJoystick);
-}
-
-// --- Init ---
-function initTouch() {
-  if (!isTouchDevice()) return;
-
-  container = document.getElementById('touch-controls');
-  joystickZone = document.getElementById('joystick-zone');
-  joystickBase = document.getElementById('joystick-base');
-  joystickKnob = document.getElementById('joystick-knob');
-
-  if (!container) return;
-
-  container.style.display = 'block';
-
-  // Action buttons — sized with min() for minimum physical size,
-  // spaced with generous gaps using vh (short axis in landscape)
-  const safeR = 'calc(2vw + env(safe-area-inset-right, 0px))';
-  const safeB = 'env(safe-area-inset-bottom, 0px)';
-  const safeT = 'env(safe-area-inset-top, 0px)';
-  const safeL = 'env(safe-area-inset-left, 0px)';
-
-  // Bottom-up layout: SHOT at bottom, SMASH above with gap, LOB above that
-  // Using vh for vertical positioning (reliable in landscape)
-  const shotBtn = createButton('btn-shot', 'SHOT', {
-    right: safeR,
-    bottom: `calc(4vh + ${safeB})`,
-    width: 'min(18vw, 25vh)', height: 'min(18vw, 25vh)',
-    fontSize: 'min(3vw, 4vh)',
-  });
-  const smashBtn = createButton('btn-smash', 'SMASH', {
-    right: safeR,
-    bottom: `calc(34vh + ${safeB})`,
-    width: 'min(15vw, 21vh)', height: 'min(15vw, 21vh)',
-    fontSize: 'min(2.5vw, 3.5vh)',
-  });
-  const lobBtn = createButton('btn-lob', 'LOB', {
-    right: `calc(1vw + env(safe-area-inset-right, 0px))`,
-    bottom: `calc(60vh + ${safeB})`,
-    width: 'min(13vw, 18vh)', height: 'min(13vw, 18vh)',
-    fontSize: 'min(2.5vw, 3.5vh)',
-  });
-  const pauseBtn = createButton('btn-pause', '||', {
-    left: `calc(1vw + ${safeL})`, top: `calc(1vh + ${safeT})`,
-    width: 'min(5vw, 7vh)', height: 'min(5vw, 7vh)',
-    fontSize: 'min(1.5vw, 2vh)',
-    borderRadius: '20%',
-  });
-
-  container.appendChild(shotBtn);
-  container.appendChild(smashBtn);
-  container.appendChild(lobBtn);
-  container.appendChild(pauseBtn);
-
-  setupButtonTouch(shotBtn, ' ');
-  setupButtonTouch(smashBtn, KEYS.POWER_SMASH);
-  setupButtonTouch(lobBtn, KEYS.LOB);
-  setupButtonTouch(pauseBtn, KEYS.PAUSE);
-
-  setupJoystickTouch();
-
-  // Block pull-to-refresh and other gestures
-  document.addEventListener('touchmove', (e) => {
-    if (e.target.closest('#touch-controls') || e.target.tagName === 'CANVAS') {
-      e.preventDefault();
-    }
-  }, { passive: false });
 }
 
 // === src/font.js ===
@@ -767,24 +429,11 @@ function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, animFrame, 
     ctx.fillRect(px + 14, py + 32, 4, 2);
   }
 
-  // --- Shorts / Skirt ---
-  if (gender === 'female') {
-    // Skirt — wider, A-line shape, white
-    ctx.fillStyle = '#f0f0f0';
-    ctx.fillRect(px + 5, py + 22, 14, 3);    // top of skirt (same width as torso)
-    ctx.fillRect(px + 4, py + 25, 16, 2);    // flared bottom (wider)
-    ctx.fillRect(px + 3, py + 27, 18, 1);    // hem (widest)
-    // Skirt shadow/fold detail
-    ctx.fillStyle = '#d0d0d0';
-    ctx.fillRect(px + 8, py + 23, 1, 4);     // center fold
-    ctx.fillRect(px + 14, py + 23, 1, 4);    // right fold
-  } else {
-    // Shorts — dark, standard
-    ctx.fillStyle = PALETTE.SHORTS_DARK;
-    ctx.fillRect(px + 6, py + 22, 12, 5);
-    ctx.fillStyle = 'rgba(0,0,0,0.1)';
-    ctx.fillRect(px + 6, py + 22, 1, 5);
-  }
+  // --- Shorts ---
+  ctx.fillStyle = PALETTE.SHORTS_DARK;
+  ctx.fillRect(px + 6, py + 22, 12, 5);
+  ctx.fillStyle = 'rgba(0,0,0,0.1)';
+  ctx.fillRect(px + 6, py + 22, 1, 5);
 
   // --- Torso (avatar color) ---
   ctx.fillStyle = color;
@@ -814,29 +463,15 @@ function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, animFrame, 
   }
 
   // --- Hair ---
+  const hairColor = gender === 'female' ? '#6b3a2a' : '#4a3728';
+  ctx.fillStyle = hairColor;
+  ctx.fillRect(px + 7, py, 10, 3);
+  ctx.fillRect(px + 8, py - 1, 8, 1);
+  ctx.fillRect(px + 7, py + 3, 1, 3);
+  ctx.fillRect(px + 16, py + 3, 1, 3);
   if (gender === 'female') {
-    // Female: longer hair flowing down sides + ponytail
-    ctx.fillStyle = '#6b3a2a';
-    ctx.fillRect(px + 7, py - 1, 10, 4);       // top hair, thicker
-    ctx.fillRect(px + 8, py - 2, 8, 1);        // top peak
-    // Side hair flowing down past ears
-    ctx.fillRect(px + 6, py + 2, 2, 6);        // left side hair
-    ctx.fillRect(px + 16, py + 2, 2, 6);       // right side hair
-    // Ponytail (visible from all angles)
-    ctx.fillRect(px + 10, py - 3, 4, 1);
-    ctx.fillRect(px + 11, py - 4, 2, 1);
-    if (facing === 'up') {
-      // Ponytail hanging down the back
-      ctx.fillRect(px + 10, py - 3, 4, 2);
-      ctx.fillRect(px + 11, py - 5, 2, 2);
-    }
-  } else {
-    // Male: short cropped hair
-    ctx.fillStyle = '#4a3728';
-    ctx.fillRect(px + 7, py, 10, 3);
-    ctx.fillRect(px + 8, py - 1, 8, 1);
-    ctx.fillRect(px + 7, py + 3, 1, 2);
-    ctx.fillRect(px + 16, py + 3, 1, 2);
+    ctx.fillRect(px + 10, py - 2, 4, 1);
+    ctx.fillRect(px + 11, py - 3, 2, 1);
   }
 
   // --- Headband ---
@@ -846,22 +481,14 @@ function drawPlayerSprite(ctx, x, y, avatarIndex, facing, animState, animFrame, 
   // --- Face ---
   if (facing !== 'up') {
     ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(px + 9, py + 6, 2, 2);        // left eye
-    ctx.fillRect(px + 13, py + 6, 2, 2);       // right eye
+    ctx.fillRect(px + 9, py + 6, 2, 2);
+    ctx.fillRect(px + 13, py + 6, 2, 2);
     ctx.fillStyle = '#fff';
-    ctx.fillRect(px + 9, py + 6, 1, 1);        // eye highlight
+    ctx.fillRect(px + 9, py + 6, 1, 1);
     ctx.fillRect(px + 13, py + 6, 1, 1);
-    if (gender === 'female') {
-      // Eyelashes (1px above each eye)
+    if (facing === 'down') {
       ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(px + 9, py + 5, 2, 1);
-      ctx.fillRect(px + 13, py + 5, 2, 1);
-      // Lips (pink, slightly wider than male mouth)
-      ctx.fillStyle = '#e07080';
       ctx.fillRect(px + 10, py + 9, 4, 1);
-    } else if (facing === 'down') {
-      ctx.fillStyle = '#1a1a2e';
-      ctx.fillRect(px + 10, py + 9, 4, 1);     // male mouth
     }
   }
 
@@ -1041,27 +668,24 @@ function drawBallSprite(ctx, x, y, z, vx = 0, vy = 0) {
   const px = Math.floor(x);
   const py = Math.floor(y);
   const height = Math.max(0, z);
-  const ballRise = Math.floor(height * 0.35); // slightly more rise per unit z (was 0.3)
+  const ballRise = Math.floor(height * 0.3); // pixels the ball rises visually
 
-  ballTrail.push({ x: px, y: py, z: height });
-  if (ballTrail.length > 7) ballTrail.shift(); // longer trail (was 5)
+  ballTrail.push({ x: px, y: py });
+  if (ballTrail.length > 5) ballTrail.shift();
 
-  // Trail (follows the elevated ball position) — brighter & longer for visibility
+  // Trail (follows the elevated ball position)
   for (let i = 0; i < ballTrail.length - 1; i++) {
     const t = ballTrail[i];
-    const tRise = Math.floor(t.z * 0.35);
-    const progress = (i + 1) / ballTrail.length;
-    const alpha = progress * 0.5; // was 0.25 — brighter trail
-    const size = Math.max(1, Math.floor(4 * progress));
+    const alpha = (i + 1) / ballTrail.length * 0.25;
+    const size = Math.max(1, Math.floor(3 * (i + 1) / ballTrail.length));
     ctx.fillStyle = `rgba(249, 199, 79, ${alpha})`;
-    ctx.fillRect(t.x + 1, t.y + 1 - tRise, size, size);
+    ctx.fillRect(t.x + 1, t.y + 1 - ballRise, size, size);
   }
 
   // === GROUND SHADOW (stays at ground, GROWS larger + fainter with height) ===
-  // Stronger contrast at low altitudes so impact is obvious
-  const shadowGrow = 1.0 + height * 0.025;
-  const shadowAlpha = Math.max(0.1, 0.6 - height * 0.005); // darker baseline
-  const shadowW = Math.max(5, Math.floor(9 * shadowGrow));
+  const shadowGrow = 1.0 + height * 0.02; // shadow spreads with height
+  const shadowAlpha = Math.max(0.06, 0.45 - height * 0.003); // fainter with height
+  const shadowW = Math.max(4, Math.floor(8 * shadowGrow));
   const shadowH = Math.max(2, Math.floor(3 * shadowGrow));
   const shadowX = px + 3 - Math.floor(shadowW / 2);
   const shadowY = py + 4;
@@ -1077,15 +701,9 @@ function drawBallSprite(ctx, x, y, z, vx = 0, vy = 0) {
   }
 
   // === Vertical line connecting ball to shadow (height indicator) ===
-  // Made more visible — was nearly invisible
-  if (ballRise > 3) {
-    ctx.fillStyle = `rgba(255,255,255,${Math.min(0.3, 0.12 + height * 0.003)})`;
+  if (ballRise > 4) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.min(0.15, shadowAlpha * 0.3)})`;
     ctx.fillRect(px + 3, py + 3 - ballRise, 1, ballRise);
-    // Tick marks every 6px so you can read altitude at a glance
-    for (let h = 6; h < ballRise; h += 6) {
-      ctx.fillStyle = `rgba(255,255,255,${Math.min(0.4, 0.2 + height * 0.003)})`;
-      ctx.fillRect(px + 2, py + 3 - h, 3, 1);
-    }
   }
 
   // === BALL (elevated by height) ===
@@ -1169,34 +787,11 @@ function playTone(freq, duration, type = 'square', gainNode = sfxGain, volume = 
 // SFX
 const SFX = {
   hit: () => playTone(440, 0.08, 'square'),
-  smash: () => {
-    // Sharp, aggressive — clearly different from normal hit
-    playTone(220, 0.05, 'square', sfxGain, 0.45);
-    setTimeout(() => playTone(880, 0.08, 'sawtooth', sfxGain, 0.4), 30);
-  },
   bounce: () => playTone(330, 0.06, 'triangle'),
   fault: () => {
     playTone(150, 0.3, 'square', sfxGain, 0.4);
     setTimeout(() => playTone(100, 0.3, 'square', sfxGain, 0.3), 150);
   },
-  // YOU scored — bright, ascending, triumphant
-  scoreWin: () => {
-    playTone(659, 0.08, 'square', sfxGain, 0.4);
-    setTimeout(() => playTone(880, 0.08, 'square', sfxGain, 0.4), 80);
-    setTimeout(() => playTone(1175, 0.18, 'square', sfxGain, 0.4), 160);
-  },
-  // OPPONENT scored — dark, descending, sad
-  scoreLose: () => {
-    playTone(440, 0.12, 'sawtooth', sfxGain, 0.35);
-    setTimeout(() => playTone(330, 0.12, 'sawtooth', sfxGain, 0.35), 120);
-    setTimeout(() => playTone(220, 0.2, 'sawtooth', sfxGain, 0.3), 240);
-  },
-  // Side out (server changes) — neutral two-tone
-  sideOut: () => {
-    playTone(523, 0.1, 'triangle', sfxGain, 0.35);
-    setTimeout(() => playTone(392, 0.15, 'triangle', sfxGain, 0.35), 110);
-  },
-  // Legacy alias
   point: () => {
     playTone(523, 0.1, 'square');
     setTimeout(() => playTone(659, 0.1, 'square'), 100);
@@ -1375,7 +970,7 @@ function checkBallBoundaries(ball) {
   return result;
 }
 
-function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player', flightTime = 1.0) {
+function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player') {
   ball.x = fromX;
   ball.y = fromY;
   ball.z = 8;
@@ -1391,15 +986,14 @@ function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player', flig
   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
   const g = Math.abs(BALL.GRAVITY);
 
-  const ft = Math.max(flightTime, 0.4);
-  let vz = 0.5 * g * ft;
+  // Serve flight time ~1.0s
+  const flightTime = 1.0;
+  let vz = 0.5 * g * flightTime;
   // Ensure net clearance
   const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 10));
   vz = Math.max(vz, minVz);
 
-  // Quadratic solve: ball lands at z=0 starting from z=ball.z (was overshooting before)
-  const z0 = ball.z;
-  const actualFlightTime = (vz + Math.sqrt(vz * vz + 2 * g * z0)) / g;
+  const actualFlightTime = 2 * vz / g;
   const hSpeed = dist / Math.max(actualFlightTime, 0.1);
 
   ball.vx = (dx / dist) * hSpeed;
@@ -1407,45 +1001,36 @@ function serveBall(ball, fromX, fromY, targetX, targetY, server = 'player', flig
   ball.vz = vz;
 }
 
-function hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet = true) {
-  // Ball lands at the target. Speed determined by flight time.
-  // flightTime: seconds in air (0.3=smash, 0.7=drive, 1.6=lob)
-  // arcMult: height multiplier (1.0=flat, 2.5=lob)
-  // safeNet: true=guarantee net clearance (soft shots), false=flat & risky (hard shots)
+function hitBall(ball, targetX, targetY, flightTime, arcMult) {
+  // Ball ALWAYS lands at the target.
+  // flightTime = desired seconds in air (lower = faster, higher = slower/lobbier)
+  // arcMult = height multiplier (1.0 = normal, 2.0 = high lob)
+  // Horizontal speed is ALWAYS computed from actual flight time so ball lands on target.
 
   const dx = targetX - ball.x;
   const dy = targetY - ball.y;
   const dist = Math.sqrt(dx * dx + dy * dy) || 1;
   const g = Math.abs(BALL.GRAVITY);
-  const ft = Math.max(flightTime, 0.2);
+  const ft = Math.max(flightTime, 0.3);
 
-  // Base vz from desired flight time
+  // Compute vz from desired flight time
   let vz = 0.5 * g * ft;
 
-  // Net clearance — accounts for ball's current height
+  // Ensure net clearance
   const crossesNet = (ball.y < COURT.NET_Y && targetY > COURT.NET_Y) ||
                      (ball.y > COURT.NET_Y && targetY < COURT.NET_Y);
   if (crossesNet) {
-    const heightNeeded = Math.max(BALL.NET_HEIGHT - ball.z, 0);
-    if (safeNet) {
-      // Soft shots: generous margin
-      const minVz = Math.sqrt(2 * g * (heightNeeded + 8));
-      vz = Math.max(vz, minVz);
-    } else if (heightNeeded > 0) {
-      // Hard shots: minimal boost only if ball is below net
-      // If ball is already above net (smash), NO boost → full speed
-      const minVz = Math.sqrt(2 * g * (heightNeeded + 1));
-      vz = Math.max(vz, minVz);
-    }
+    const minVz = Math.sqrt(2 * g * (BALL.NET_HEIGHT + 10));
+    vz = Math.max(vz, minVz);
   }
 
   // Apply arc multiplier
   vz *= Math.max(arcMult || 1.0, 1.0);
 
-  // Horizontal speed from actual flight time → ball lands at target
-  // Solve 0 = z0 + vz*t - 0.5*g*t² for t (accounts for ball starting above ground)
-  const z0 = Math.max(ball.z, 3);
-  const actualFT = (vz + Math.sqrt(vz * vz + 2 * g * z0)) / g;
+  // ACTUAL flight time after all boosts (this is how long ball is in the air)
+  const actualFT = 2 * vz / g;
+
+  // Horizontal speed computed from ACTUAL flight time → ball lands at target
   const hSpeed = dist / Math.max(actualFT, 0.1);
 
   ball.vx = (dx / dist) * hSpeed;
@@ -1572,26 +1157,9 @@ function onBallHit(rules, hitter) {
   return { fault: false };
 }
 
-function checkKitchenVolley(hitter, hitterY, bounceCount) {
-  // Kitchen/NVZ rule: you CANNOT volley while standing in the kitchen.
-  // Volleying = hitting the ball before it bounces on YOUR side.
-  // You CAN enter the kitchen and hit if the ball has bounced there.
-  //
-  // Player's kitchen: NET_Y to NET_Y + KITCHEN_DEPTH
-  // Opponent's kitchen: NET_Y - KITCHEN_DEPTH to NET_Y
-
-  const inKitchen = hitter === 'player'
-    ? hitterY >= COURT.NET_Y && hitterY <= COURT.NET_Y + COURT.KITCHEN_DEPTH
-    : hitterY >= COURT.NET_Y - COURT.KITCHEN_DEPTH && hitterY <= COURT.NET_Y;
-
-  if (!inKitchen) return { fault: false };
-
-  // In the kitchen — only a fault if the ball hasn't bounced on their side (volley)
-  if (bounceCount === 0) {
-    return { fault: true, reason: FaultReason.KITCHEN_VOLLEY, against: hitter };
-  }
-
-  // Ball bounced on their side — legal to hit from kitchen
+function checkKitchenVolley(ball, hitter, hitterY) {
+  // Disabled for now — kitchen volley detection was too aggressive
+  // TODO: re-enable with proper bounce tracking
   return { fault: false };
 }
 
@@ -2496,22 +2064,17 @@ function tryHitBall(ai, opponent, ball, tier, rules) {
     if (rules.bounceCount.opponent === 0) {
       return null; // Ball hasn't bounced on AI's side yet — WAIT
     }
-    // Ball just bounced — let it rise a bit so the bounce is visually clear
-    // (otherwise AI hits on the same frame as the bounce and looks like it skipped it)
-    if (ball.z < 6) return null;
   }
-  // Universal anti-snap: never hit on the exact bounce frame
-  if (ball.z < 2 && ball.vz > 0) return null;
 
   // Very low whiff rate
   const whiffChance = tier.errorRate * 0.08;
   if (Math.random() < whiffChance) return null;
 
-  // Kitchen volley check — can't volley while in kitchen
+  // Kitchen volley check — can't volley in kitchen
   const aiCenterY = opponent.y + PLAYER.HEIGHT / 2;
   const inKitchen = aiCenterY >= COURT.NET_Y - COURT.KITCHEN_DEPTH && aiCenterY <= COURT.NET_Y;
-  if (inKitchen && rules.bounceCount.opponent === 0) {
-    return null; // In kitchen + ball hasn't bounced = would be a volley fault, so wait
+  if (inKitchen && !ball.bouncedInCourt) {
+    return null; // Don't volley in kitchen
   }
 
   // Target: player's side, well within bounds
@@ -2615,8 +2178,8 @@ class StateMachine {
 // ============================================================
 
 
-const TITLE_MENU = ['NEW GAME', 'HOW TO PLAY', 'SETTINGS'];
-let titleSel = 0;
+const MENU_ITEMS = ['NEW GAME', 'HOW TO PLAY', 'SETTINGS'];
+let selectedIndex = 0;
 let animTimer = 0;
 let ballX = 0;
 let ballY = 0;
@@ -2626,7 +2189,7 @@ let firstInteraction = false;
 
 const TitleScreen = {
   enter(gameCtx) {
-    titleSel = 0;
+    selectedIndex = 0;
     animTimer = 0;
     ballX = 80;
     ballY = 140;
@@ -2646,19 +2209,19 @@ const TitleScreen = {
 
     // Menu navigation
     if (isPressed('ArrowDown') || isPressed('s')) {
-      titleSel = (titleSel + 1) % TITLE_MENU.length;
+      selectedIndex = (selectedIndex + 1) % MENU_ITEMS.length;
       handleFirstInteraction();
       playSFX('menuMove');
     }
     if (isPressed('ArrowUp') || isPressed('w')) {
-      titleSel = (titleSel - 1 + TITLE_MENU.length) % TITLE_MENU.length;
+      selectedIndex = (selectedIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length;
       handleFirstInteraction();
       playSFX('menuMove');
     }
     if (isPressed('Enter') || isPressed(' ')) {
       handleFirstInteraction();
       playSFX('menuSelect');
-      switch (titleSel) {
+      switch (selectedIndex) {
         case 0:
           gameCtx.stateMachine.transition(GameState.MODE_SELECT);
           break;
@@ -2707,7 +2270,7 @@ const TitleScreen = {
     // Menu
     const menuX = INTERNAL_WIDTH / 2 - 50;
     const menuY = 210;
-    drawMenu(ctx, TITLE_MENU, titleSel, menuX, menuY, PALETTE.WHITE, PALETTE.YELLOW, 1);
+    drawMenu(ctx, MENU_ITEMS, selectedIndex, menuX, menuY, PALETTE.WHITE, PALETTE.YELLOW, 1);
 
     // Footer
     drawTextCentered(ctx, 'PRESS ENTER TO SELECT', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
@@ -2722,161 +2285,61 @@ function handleFirstInteraction() {
   }
 }
 
-// === src/states/mode-select.js ===
-// ============================================================
-// MODE SELECT STATE
-// ============================================================
-
-
-const MODES = [
-  { mode: GameMode.MENS_SINGLES,   label: "MEN'S SINGLES",   type: '1V1', available: true },
-  { mode: GameMode.WOMENS_SINGLES, label: "WOMEN'S SINGLES", type: '1V1', available: true },
-  { mode: GameMode.MENS_DOUBLES,   label: "MEN'S DOUBLES",   type: '2V2', available: false },
-  { mode: GameMode.WOMENS_DOUBLES, label: "WOMEN'S DOUBLES", type: '2V2', available: false },
-  { mode: GameMode.MIXED_DOUBLES,  label: "MIXED DOUBLES",   type: '2V2', available: false },
-];
-
-let modeSel = 0;
-
-const ModeSelect = {
-  enter(gameCtx) {
-    modeSel = 0;
-  },
-
-  update(dt, gameCtx) {
-    if (isPressed('ArrowDown') || isPressed('s')) {
-      modeSel = (modeSel + 1) % MODES.length;
-      playSFX('menuMove');
-    }
-    if (isPressed('ArrowUp') || isPressed('w')) {
-      modeSel = (modeSel - 1 + MODES.length) % MODES.length;
-      playSFX('menuMove');
-    }
-    if (isPressed('Enter') || isPressed(' ')) {
-      const selected = MODES[modeSel];
-      if (selected.available) {
-        playSFX('menuSelect');
-        gameCtx.gameMode = selected.mode;
-        gameCtx.stateMachine.transition(GameState.PLAYER_SETUP);
-      } else {
-        playSFX('fault');
-      }
-    }
-    if (isPressed('Escape')) {
-      playSFX('menuSelect');
-      gameCtx.stateMachine.transition(GameState.TITLE_SCREEN);
-    }
-  },
-
-  render(ctx, gameCtx) {
-    clearScreen(ctx, PALETTE.DARK_BLUE);
-    drawTextCentered(ctx, 'SELECT MODE', INTERNAL_WIDTH / 2, 12, PALETTE.YELLOW, 2);
-
-    const startY = 80;
-    const lineH = 35;
-
-    for (let i = 0; i < MODES.length; i++) {
-      const m = MODES[i];
-      const isSelected = i === modeSel;
-      const y = startY + i * lineH;
-
-      if (isSelected) {
-        ctx.fillStyle = 'rgba(255,255,255,0.08)';
-        ctx.fillRect(30, y - 2, INTERNAL_WIDTH - 60, lineH - 2);
-      }
-
-      const badgeColor = m.type === '1V1' ? PALETTE.LIGHT_BLUE : PALETTE.ORANGE;
-      ctx.fillStyle = isSelected ? badgeColor : PALETTE.GRAY;
-      ctx.fillRect(40, y, 20, 8);
-      drawText(ctx, m.type, 41, y + 1, PALETTE.BLACK, 1);
-
-      const labelColor = !m.available ? PALETTE.GRAY : isSelected ? PALETTE.WHITE : PALETTE.LIGHT_GRAY;
-      drawText(ctx, m.label, 66, y + 1, labelColor, 1);
-
-      if (!m.available) {
-        drawText(ctx, '(SOON)', 200, y + 1, PALETTE.GRAY, 1);
-      }
-    }
-
-    drawTextCentered(ctx, 'ENTER: SELECT   ESC: BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
-  },
-};
-
 // === src/states/player-setup.js ===
 // ============================================================
 // PLAYER SETUP STATE
 // ============================================================
 
 
-function setupGetAvatars(gameMode) {
-  if (gameMode === GameMode.WOMENS_SINGLES || gameMode === GameMode.WOMENS_DOUBLES)
-    return AVATARS.filter(a => a.gender === 'female');
-  if (gameMode === GameMode.MENS_SINGLES || gameMode === GameMode.MENS_DOUBLES)
-    return AVATARS.filter(a => a.gender === 'male');
-  return AVATARS;
-}
-
-const SETUP_FIELDS = ['NAME', 'DUPR', 'AVATAR', 'CONFIRM'];
-let setupFieldIdx = 0;
-let setupName = '';
-let setupDupr = 3.5;
-let setupAvatarIdx = 0;
-let setupBlink = 0;
-let setupAvatars = AVATARS;
+const FIELDS = ['NAME', 'DUPR', 'AVATAR', 'CONFIRM'];
+let fieldIndex = 0;
+let name = '';
+let dupr = 3.5;
+let avatarIndex = 0;
+let cursorBlink = 0;
 
 const PlayerSetup = {
   enter(gameCtx) {
-    setupFieldIdx = 0;
-    setupName = gameCtx.player.name || '';
-    setupDupr = gameCtx.player.dupr || 3.5;
-    setupAvatars = setupGetAvatars(gameCtx.gameMode);
-    setupAvatarIdx = 0;
-    setupBlink = 0;
+    fieldIndex = 0;
+    name = gameCtx.player.name || '';
+    dupr = gameCtx.player.dupr || 3.5;
+    avatarIndex = gameCtx.player.avatar || 0;
+    cursorBlink = 0;
   },
 
   exit(gameCtx) {
-    const av = setupAvatars[setupAvatarIdx];
-    const realIdx = AVATARS.indexOf(av);
-    gameCtx.player.name = setupName || 'PLAYER';
-    gameCtx.player.dupr = setupDupr;
-    gameCtx.player.avatar = realIdx >= 0 ? realIdx : 0;
-    gameCtx.player.gender = av.gender || 'male';
-    const isWomens = gameCtx.gameMode === GameMode.WOMENS_SINGLES || gameCtx.gameMode === GameMode.WOMENS_DOUBLES;
-    gameCtx.opponent.gender = isWomens ? 'female' : 'male';
-    gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, setupDupr + (Math.random() - 0.5)));
+    gameCtx.player.name = name || 'PLAYER';
+    gameCtx.player.dupr = dupr;
+    gameCtx.player.avatar = avatarIndex;
+    // Set AI DUPR to match (+/- variation)
+    gameCtx.opponent.dupr = Math.max(1.0, Math.min(8.0, dupr + (Math.random() - 0.5)));
   },
 
   update(dt, gameCtx) {
-    setupBlink += dt;
+    cursorBlink += dt;
 
-    if (isPressed('Escape')) {
-      playSFX('menuSelect');
-      gameCtx.stateMachine.transition(GameState.MODE_SELECT);
-      return;
-    }
-
+    // Field navigation
     if (isPressed('ArrowDown') || isPressed('Tab')) {
-      setupFieldIdx = (setupFieldIdx + 1) % SETUP_FIELDS.length;
+      fieldIndex = (fieldIndex + 1) % FIELDS.length;
       playSFX('menuMove');
     }
     if (isPressed('ArrowUp')) {
-      setupFieldIdx = (setupFieldIdx - 1 + SETUP_FIELDS.length) % SETUP_FIELDS.length;
+      fieldIndex = (fieldIndex - 1 + FIELDS.length) % FIELDS.length;
       playSFX('menuMove');
     }
 
-    switch (SETUP_FIELDS[setupFieldIdx]) {
+    // Field-specific input
+    switch (FIELDS[fieldIndex]) {
       case 'NAME':
-        setupHandleName();
+        handleNameInput();
         break;
-      case 'DUPR': {
-        const step = isDown('Shift') ? 0.5 : 0.1;
-        if (isPressed('ArrowRight')) { setupDupr = Math.min(8.0, Math.round((setupDupr + step) * 10) / 10); playSFX('menuMove'); }
-        if (isPressed('ArrowLeft'))  { setupDupr = Math.max(1.0, Math.round((setupDupr - step) * 10) / 10); playSFX('menuMove'); }
+      case 'DUPR':
+        if (isPressed('ArrowRight')) { dupr = Math.min(8.0, Math.round((dupr + 0.1) * 10) / 10); playSFX('menuMove'); }
+        if (isPressed('ArrowLeft'))  { dupr = Math.max(1.0, Math.round((dupr - 0.1) * 10) / 10); playSFX('menuMove'); }
         break;
-      }
       case 'AVATAR':
-        if (isPressed('ArrowRight')) { setupAvatarIdx = (setupAvatarIdx + 1) % setupAvatars.length; playSFX('menuMove'); }
-        if (isPressed('ArrowLeft'))  { setupAvatarIdx = (setupAvatarIdx - 1 + setupAvatars.length) % setupAvatars.length; playSFX('menuMove'); }
+        if (isPressed('ArrowRight')) { avatarIndex = (avatarIndex + 1) % AVATARS.length; playSFX('menuMove'); }
+        if (isPressed('ArrowLeft'))  { avatarIndex = (avatarIndex - 1 + AVATARS.length) % AVATARS.length; playSFX('menuMove'); }
         break;
       case 'CONFIRM':
         if (isPressed('Enter') || isPressed(' ')) {
@@ -2886,8 +2349,11 @@ const PlayerSetup = {
         break;
     }
 
-    if (SETUP_FIELDS[setupFieldIdx] !== 'NAME' && isPressed('Enter')) {
-      if (SETUP_FIELDS[setupFieldIdx] !== 'CONFIRM') setupFieldIdx = SETUP_FIELDS.length - 1;
+    // Quick confirm from any field
+    if (FIELDS[fieldIndex] !== 'NAME' && isPressed('Enter')) {
+      if (FIELDS[fieldIndex] !== 'CONFIRM') {
+        fieldIndex = FIELDS.length - 1; // jump to confirm
+      }
     }
   },
 
@@ -2901,36 +2367,39 @@ const PlayerSetup = {
     const startY = 38;
     const lineH = 22;
 
-    // Name
-    const nameActive = setupFieldIdx === 0;
+    // Name field
+    const nameActive = fieldIndex === 0;
     drawText(ctx, 'NAME:', 30, startY, nameActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    const cursor = nameActive && Math.floor(setupBlink * 3) % 2 === 0 ? '_' : '';
-    drawText(ctx, (setupName || '') + cursor, 80, startY, PALETTE.WHITE, 1);
+    const cursor = nameActive && Math.floor(cursorBlink * 3) % 2 === 0 ? '_' : '';
+    drawText(ctx, (name || '') + cursor, 80, startY, PALETTE.WHITE, 1);
 
-    // DUPR
-    const duprActive = setupFieldIdx === 1;
-    const tier = DUPR_TIERS.find(t => setupDupr >= t.min && setupDupr <= t.max) || DUPR_TIERS[0];
+    // DUPR field
+    const duprActive = fieldIndex === 1;
+    const tier = DUPR_TIERS.find(t => dupr >= t.min && dupr <= t.max) || DUPR_TIERS[0];
     drawText(ctx, 'DUPR:', 30, startY + lineH, duprActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    drawText(ctx, `< ${setupDupr.toFixed(1)} >`, 80, startY + lineH, PALETTE.WHITE, 1);
+    drawText(ctx, `< ${dupr.toFixed(1)} >`, 80, startY + lineH, PALETTE.WHITE, 1);
     drawText(ctx, tier.name, 140, startY + lineH, PALETTE.ORANGE, 1);
 
-    const barX = 80, barY = startY + lineH + 10, barW = 100;
+    // DUPR bar
+    const barX = 80;
+    const barY = startY + lineH + 10;
+    const barW = 100;
     ctx.fillStyle = PALETTE.GRAY;
     ctx.fillRect(barX, barY, barW, 3);
     ctx.fillStyle = PALETTE.YELLOW;
-    ctx.fillRect(barX, barY, ((setupDupr - 1.0) / 7.0) * barW, 3);
+    const fill = ((dupr - 1.0) / 7.0) * barW;
+    ctx.fillRect(barX, barY, fill, 3);
 
-    // Avatar
-    const avatarActive = setupFieldIdx === 2;
+    // Avatar field
+    const avatarActive = fieldIndex === 2;
     drawText(ctx, 'AVATAR:', 30, startY + lineH * 2 + 8, avatarActive ? PALETTE.YELLOW : PALETTE.LIGHT_GRAY, 1);
-    const av = setupAvatars[setupAvatarIdx];
-    const realIdx = AVATARS.indexOf(av);
-    drawText(ctx, `< ${av.name} >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
+    drawText(ctx, `< ${AVATARS[avatarIndex].name} >`, 90, startY + lineH * 2 + 8, PALETTE.WHITE, 1);
 
-    drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, realIdx >= 0 ? realIdx : 0, 'down', 'idle', 0, av.gender || 'male');
+    // Avatar preview
+    drawPlayerSprite(ctx, INTERNAL_WIDTH / 2 - 8, startY + lineH * 2 + 24, avatarIndex, 'down', 'idle', 0);
 
-    // Confirm
-    const confirmActive = setupFieldIdx === 3;
+    // Confirm button
+    const confirmActive = fieldIndex === 3;
     const confirmY = startY + lineH * 2 + 56;
     if (confirmActive) {
       ctx.fillStyle = PALETTE.YELLOW;
@@ -2940,19 +2409,28 @@ const PlayerSetup = {
       drawTextCentered(ctx, 'START MATCH', INTERNAL_WIDTH / 2, confirmY, PALETTE.GRAY, 1);
     }
 
-    drawTextCentered(ctx, 'UP/DOWN: SELECT  LEFT/RIGHT: CHANGE  ESC: BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
+    // Help text
+    drawTextCentered(ctx, 'UP/DOWN: SELECT  LEFT/RIGHT: CHANGE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
-const SETUP_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
+// Keyboard handler for name entry
+const ALLOWED_CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 ';
+let keyBuffer = [];
 
-function setupHandleName() {
-  for (const char of SETUP_CHARS) {
+function handleNameInput() {
+  // We check all allowed chars via the input system
+  for (const char of ALLOWED_CHARS) {
     if (isPressed(char) || isPressed(char.toLowerCase())) {
-      if (setupName.length < 12) { setupName += char; playSFX('menuMove'); }
+      if (name.length < 12) {
+        name += char;
+        playSFX('menuMove');
+      }
     }
   }
-  if (isPressed('Backspace')) setupName = setupName.slice(0, -1);
+  if (isPressed('Backspace')) {
+    name = name.slice(0, -1);
+  }
 }
 
 // === src/states/gameplay.js ===
@@ -2975,21 +2453,15 @@ let servePrompt = false, pendingGameEnd = null;
 let rallyCount = 0, lastShotFeedback = '', feedbackTimer = 0;
 let servePositioned = false, serveDelayTimer = 0;
 let playerSwingTimer = 0, aiSwingTimer = 0;
-let smashShakeTimer = 0;
-let shotBuffer = 0, shotBufferKey = null;
-let bounceFx = []; // {x, y, age, maxAge, side, mark}
-let inputArmed = false; // false until SMASH key is seen released — prevents stale touch from auto-serving on entry
 
 // Single-button charge state
 let chargeTime = 0;
 let isCharging = false;
 const MAX_CHARGE = 0.5; // seconds to reach max power
-const SOFT_THRESHOLD = 0.25; // hold < 0.25s = tap (soft shot: dink/drop/reset)
+const SOFT_THRESHOLD = 0.15; // hold < this = tap (soft shot)
 
-// Aim crosshair — follows movement direction, sticky after release
+// Aim crosshair — follows movement direction
 let aimTarget = { x: 0, y: 0 };
-let aimStickyTimer = 0;
-const AIM_STICKY_DURATION = 1.0; // seconds to hold last aim after no input
 
 const Gameplay = {
   enter(gameCtx) {
@@ -3021,9 +2493,6 @@ const Gameplay = {
     chargeTime = 0; isCharging = false;
     servePositioned = false; serveDelayTimer = 0;
     playerSwingTimer = 0; aiSwingTimer = 0;
-    smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null; aimStickyTimer = 0;
-    bounceFx = [];
-    inputArmed = false; // require SMASH key to be RELEASED first before any serve/shot fires
     aimTarget = { x: COURT.CENTER_X, y: COURT.Y + COURT.HEIGHT / 4 };
 
     playBGM('gameplay');
@@ -3039,14 +2508,6 @@ const Gameplay = {
     if (feedbackTimer > 0) { feedbackTimer -= dt; if (feedbackTimer <= 0) lastShotFeedback = ''; }
     if (playerSwingTimer > 0) playerSwingTimer -= dt;
     if (aiSwingTimer > 0) aiSwingTimer -= dt;
-    if (smashShakeTimer > 0) smashShakeTimer -= dt;
-    if (shotBuffer > 0) shotBuffer -= dt;
-
-    // Tick bounce effects
-    for (let i = bounceFx.length - 1; i >= 0; i--) {
-      bounceFx[i].age += dt;
-      if (bounceFx[i].age >= bounceFx[i].maxAge) bounceFx.splice(i, 1);
-    }
 
     // Fault display
     if (faultDisplay) {
@@ -3066,19 +2527,11 @@ const Gameplay = {
 
     if (hintTimer > 0) { hintTimer -= dt; if (hintTimer <= 0) hintText = ''; }
 
-    // Arm input only once the SMASH key is observed NOT down. This catches the
-    // case where the player tapped a SHOT-mapped touch button to enter gameplay
-    // (mode-select → gameplay) and the lingering release would otherwise
-    // auto-fire a serve on frame 1.
-    if (!inputArmed && !isDown(KEYS.SMASH) && !isDown(KEYS.POWER_SMASH)) {
-      inputArmed = true;
-    }
-
     // --- Movement (always active) ---
     updatePlayerMovement(player, dt);
 
     // --- Update aim crosshair based on movement direction ---
-    updateAimTarget(player, dt);
+    updateAimTarget(player);
 
     // --- Serve ---
     if (rules.serveState === ServeState.WAITING) {
@@ -3095,20 +2548,15 @@ const Gameplay = {
         const halfMax = serveSide === 'right' ? COURT.X + COURT.WIDTH - PLAYER.WIDTH : COURT.CENTER_X - PLAYER.WIDTH;
         player.x = clamp(player.x, halfMin, halfMax);
 
-        // Hold SPACE for power serve, tap for quick serve — gated on inputArmed
-        if (inputArmed && isDown(KEYS.SMASH)) {
+        // Hold SPACE for power serve, tap for quick serve
+        if (isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
           chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
           servePrompt = false;
         }
-        if (inputArmed && isCharging && isReleased(KEYS.SMASH)) {
+        if (isCharging && isReleased(KEYS.SMASH)) {
           const power = 1.0 + (chargeTime / MAX_CHARGE) * 0.5; // 1.0 - 1.5x
           performPlayerServe(player, power);
-          isCharging = false; chargeTime = 0;
-          servePositioned = false;
-        } else if (inputArmed && !isCharging && isReleased(KEYS.SMASH) && isPressed(KEYS.SMASH)) {
-          // Instant tap serve (common on mobile touch)
-          performPlayerServe(player, 1.0);
           isCharging = false; chargeTime = 0;
           servePositioned = false;
         }
@@ -3129,13 +2577,11 @@ const Gameplay = {
       const result = updateBall(ball, dt);
 
       if (rules.serveState === ServeState.SERVED && ball.bounced) {
-        spawnBounceFx(ball.x, ball.y, getBallSide(ball));
         onBallBounce(rules, getBallSide(ball));
         ball.bounced = false;
         playSFX('bounce');
       }
       if (rules.serveState === ServeState.IN_PLAY && ball.bounced) {
-        spawnBounceFx(ball.x, ball.y, getBallSide(ball));
         onBallBounce(rules, getBallSide(ball));
         ball.bounced = false;
         playSFX('bounce');
@@ -3158,44 +2604,17 @@ const Gameplay = {
         return;
       }
 
-      // --- Player shot ---
-      // SPACE: tap=soft (dink/drop/reset), hold=drive
-      // S: tap=smash, hold=power smash
-      // D: lob
+      // --- Player shot (single SPACE button) ---
       const ballOnPlayerSide = getBallSide(ball) === 'player';
-      if (inputArmed && ball.lastHitBy !== 'player' && ballOnPlayerSide) {
-        // Drain shot buffer — re-attempt a queued shot now that ball may be in range
-        if (shotBuffer > 0 && shotBufferKey) {
-          executePlayerShot(player, gameCtx, shotBufferKey, true);
-        }
-        // SPACE charge (soft/drive)
+      if (ball.lastHitBy !== 'player' && ballOnPlayerSide) {
+        // Track charge
         if (isDown(KEYS.SMASH)) {
           if (!isCharging) { isCharging = true; chargeTime = 0; }
           chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
         }
         if (isCharging && isReleased(KEYS.SMASH)) {
-          executePlayerShot(player, gameCtx, 'space');
+          executePlayerShot(player, gameCtx);
           isCharging = false; chargeTime = 0;
-        } else if (!isCharging && isReleased(KEYS.SMASH) && isPressed(KEYS.SMASH)) {
-          // Instant tap (pressed+released same frame, common on mobile touch)
-          chargeTime = 0;
-          executePlayerShot(player, gameCtx, 'space');
-        }
-        // S = smash (tap=smash, hold=power smash)
-        if (isDown(KEYS.POWER_SMASH)) {
-          if (!isCharging) { isCharging = true; chargeTime = 0; }
-          chargeTime = Math.min(chargeTime + dt, MAX_CHARGE);
-        }
-        if (isCharging && isReleased(KEYS.POWER_SMASH)) {
-          executePlayerShot(player, gameCtx, 'smash');
-          isCharging = false; chargeTime = 0;
-        } else if (!isCharging && isReleased(KEYS.POWER_SMASH) && isPressed(KEYS.POWER_SMASH)) {
-          chargeTime = 0;
-          executePlayerShot(player, gameCtx, 'smash');
-        }
-        // D = instant lob
-        if (isPressed(KEYS.LOB)) {
-          executePlayerShot(player, gameCtx, 'lob');
         }
       } else {
         isCharging = false; chargeTime = 0;
@@ -3219,20 +2638,7 @@ const Gameplay = {
   },
 
   render(ctx, gameCtx) {
-    // Smash screen shake
-    let shakeX = 0, shakeY = 0;
-    if (smashShakeTimer > 0) {
-      const mag = (smashShakeTimer / 0.18) * 3;
-      shakeX = (Math.random() - 0.5) * mag * 2;
-      shakeY = (Math.random() - 0.5) * mag * 2;
-      ctx.save();
-      ctx.translate(shakeX, shakeY);
-    }
-
     drawCourt(ctx);
-
-    // Bounce effects sit on the floor — drawn after court, before player/ball
-    drawBounceFx(ctx);
 
     // Landing marker
     if (ball.active && !ball.landed && ball.z > 3) {
@@ -3254,43 +2660,6 @@ const Gameplay = {
       gameCtx.opponent.animFrame = aiSwingTimer > 0.15 ? 1 : 2;
     }
 
-    // Double-bounce rule indicator — show "LET IT BOUNCE!" when rule is active
-    // Player must let serve bounce on first return, server must let return bounce on second hit
-    if (ball.active && !ball.landed && rules.rallyCount <= 2) {
-      const ballOnPlayerSide = getBallSide(ball) === 'player';
-      const playerMustWait = ballOnPlayerSide
-        && ball.lastHitBy !== 'player'
-        && rules.bounceCount.player === 0
-        && !rules.doubleBounceCleared.player;
-      if (playerMustWait) {
-        const blink = Math.floor(Date.now() / 200) % 2 === 0;
-        if (blink) {
-          drawTextCentered(ctx, 'LET IT BOUNCE!', INTERNAL_WIDTH / 2, COURT.Y + COURT.HEIGHT + 8, PALETTE.YELLOW, 1);
-        }
-        // Bounce-required marker over player
-        const px = Math.floor(gameCtx.player.x + PLAYER.WIDTH / 2);
-        const py = Math.floor(gameCtx.player.y) - 8;
-        ctx.fillStyle = blink ? PALETTE.YELLOW : 'rgba(244,211,94,0.5)';
-        ctx.fillRect(px - 4, py, 9, 1);
-        ctx.fillRect(px - 4, py + 4, 9, 1);
-        ctx.fillRect(px - 4, py + 1, 1, 3);
-        ctx.fillRect(px + 4, py + 1, 1, 3);
-      }
-    }
-
-    // Kitchen zone warning — highlight when player is in the kitchen
-    const playerCY = gameCtx.player.y + PLAYER.HEIGHT / 2;
-    const playerInKitchen = playerCY >= COURT.NET_Y && playerCY <= COURT.NET_Y + COURT.KITCHEN_DEPTH;
-    if (playerInKitchen && ball.active && !ball.landed) {
-      // Red tint over player's kitchen zone
-      ctx.fillStyle = 'rgba(230,57,70,0.15)';
-      ctx.fillRect(COURT.X, COURT.NET_Y, COURT.WIDTH, COURT.KITCHEN_DEPTH);
-      // Warning text
-      if (rules.bounceCount.player === 0) {
-        drawTextCentered(ctx, 'NO VOLLEY ZONE', COURT.CENTER_X, COURT.NET_Y + COURT.KITCHEN_DEPTH / 2 - 4, 'rgba(230,57,70,0.7)', 1);
-      }
-    }
-
     drawPlayer(ctx, gameCtx.opponent);
     drawPlayer(ctx, gameCtx.player);
     drawBall(ctx, ball);
@@ -3307,35 +2676,9 @@ const Gameplay = {
 
     drawHUD(ctx, gameCtx);
 
-    // Serve indicators
-    if (rules.serveState === ServeState.WAITING) {
-      const isPlayerServing = gameCtx.score.serving === 'player';
-      const server = isPlayerServing ? gameCtx.player : gameCtx.opponent;
-      const sx = Math.floor(server.x + PLAYER.WIDTH / 2);
-      const sy = Math.floor(server.y);
-
-      // Bouncing ball above server's head
-      const bounce = Math.sin(Date.now() / 200) * 3;
-      ctx.fillStyle = PALETTE.BALL_YELLOW;
-      ctx.fillRect(sx - 2, sy - 14 + bounce, 5, 5);
-      ctx.fillRect(sx - 1, sy - 15 + bounce, 3, 1);
-      ctx.fillRect(sx - 1, sy - 9 + bounce, 3, 1);
-      // Small highlight
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(sx - 1, sy - 13 + bounce, 1, 1);
-
-      // Arrow pointing at server
-      ctx.fillStyle = PALETTE.YELLOW;
-      ctx.fillRect(sx - 1, sy - 20 + bounce, 3, 3);
-      ctx.fillRect(sx, sy - 17 + bounce, 1, 2);
-
-      // Banner text
-      if (isPlayerServing) {
-        drawTextCentered(ctx, 'YOUR SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 2);
-        drawTextCentered(ctx, isTouchDevice() ? 'HOLD SHOT TO SERVE' : 'HOLD SPACE TO SERVE', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 8, PALETTE.LIGHT_GRAY, 1);
-      } else {
-        drawTextCentered(ctx, 'OPPONENT SERVING', INTERNAL_WIDTH / 2, COURT.Y - 5, PALETTE.ORANGE, 1);
-      }
+    // Serve prompt
+    if (servePrompt && rules.serveState === ServeState.WAITING && gameCtx.score.serving === 'player') {
+      drawTextCentered(ctx, 'SPACE TO SERVE (HOLD=POWER)', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 20, PALETTE.YELLOW, 1);
     }
 
     // Power bar
@@ -3371,11 +2714,7 @@ const Gameplay = {
       drawTextCentered(ctx, hintText, INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 30, PALETTE.LIGHT_BLUE, 1);
     }
 
-    if (!isTouchDevice()) {
-      drawText(ctx, 'SPACE:TAP=SOFT HOLD=DRIVE  S:SMASH  D:LOB', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
-    }
-
-    if (smashShakeTimer > 0) ctx.restore();
+    drawText(ctx, 'SPACE: TAP=SOFT HOLD=HARD', 4, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
 };
 
@@ -3383,41 +2722,35 @@ const Gameplay = {
 // AIM CROSSHAIR — follows movement direction
 // ============================================================
 
-function updateAimTarget(player, dt) {
+function updateAimTarget(player) {
   const pcx = player.x + PLAYER.WIDTH / 2;
-  const hasInput = isDown(KEYS.LEFT) || isDown(KEYS.RIGHT) || isDown(KEYS.UP) || isDown(KEYS.DOWN);
 
-  // Sticky aim: when input stops, hold last aim for AIM_STICKY_DURATION
-  // (critical on mobile — you can't aim while running to the ball with one joystick)
-  if (hasInput) {
-    aimStickyTimer = AIM_STICKY_DURATION;
-  } else if (aimStickyTimer > 0) {
-    aimStickyTimer -= dt;
-    return; // freeze aim during sticky window
-  }
-
-  // Base: auto cross-court (only when no input AND sticky has expired)
+  // Base: auto cross-court
   let tx = pcx < COURT.CENTER_X
-    ? COURT.CENTER_X + 40
-    : COURT.CENTER_X - 40;
-  let ty = COURT.Y + COURT.HEIGHT * 0.25;
+    ? COURT.CENTER_X + 40  // aim right
+    : COURT.CENTER_X - 40; // aim left
 
-  if (hasInput) {
-    if (isDown(KEYS.LEFT))  tx = COURT.X + COURT.WIDTH * 0.15;
-    if (isDown(KEYS.RIGHT)) tx = COURT.X + COURT.WIDTH * 0.85;
-    if (isDown(KEYS.UP))    ty = COURT.Y + 15;
-    if (isDown(KEYS.DOWN))  ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10;
-    if (isDown(KEYS.LEFT) && isDown(KEYS.UP))    { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.Y + 15; }
-    if (isDown(KEYS.RIGHT) && isDown(KEYS.UP))   { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.Y + 15; }
-    if (isDown(KEYS.LEFT) && isDown(KEYS.DOWN))  { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
-    if (isDown(KEYS.RIGHT) && isDown(KEYS.DOWN)) { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
-  }
+  let ty = COURT.Y + COURT.HEIGHT * 0.25; // default mid-depth on opponent side
 
+  // Arrow keys shift the aim target
+  if (isDown(KEYS.LEFT))  tx = COURT.X + COURT.WIDTH * 0.15;
+  if (isDown(KEYS.RIGHT)) tx = COURT.X + COURT.WIDTH * 0.85;
+  if (isDown(KEYS.UP))    ty = COURT.Y + 15;                    // deep
+  if (isDown(KEYS.DOWN))  ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; // short/kitchen
+
+  // Diagonals
+  if (isDown(KEYS.LEFT) && isDown(KEYS.UP))    { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.Y + 15; }
+  if (isDown(KEYS.RIGHT) && isDown(KEYS.UP))   { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.Y + 15; }
+  if (isDown(KEYS.LEFT) && isDown(KEYS.DOWN))  { tx = COURT.X + COURT.WIDTH * 0.15; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
+  if (isDown(KEYS.RIGHT) && isDown(KEYS.DOWN)) { tx = COURT.X + COURT.WIDTH * 0.85; ty = COURT.NET_Y - COURT.KITCHEN_DEPTH + 10; }
+
+  // Smooth interpolation toward target
   aimTarget.x += (tx - aimTarget.x) * 0.15;
   aimTarget.y += (ty - aimTarget.y) * 0.15;
 
-  aimTarget.x = clamp(aimTarget.x, COURT.X + 22, COURT.X + COURT.WIDTH - 22);
-  aimTarget.y = clamp(aimTarget.y, COURT.Y + 22, COURT.NET_Y - 8);
+  // Clamp to opponent's side
+  aimTarget.x = clamp(aimTarget.x, COURT.X + 10, COURT.X + COURT.WIDTH - 10);
+  aimTarget.y = clamp(aimTarget.y, COURT.Y + 5, COURT.NET_Y - 5);
 }
 
 function drawAimCrosshair(ctx) {
@@ -3445,61 +2778,11 @@ function drawLandingMarker(ctx) {
   const landing = predictLanding(ball);
   const mx = Math.floor(landing.x);
   const my = Math.floor(landing.y);
-  // Pulse stronger as ball gets closer to landing (low z = bigger marker)
-  const closeness = Math.max(0, 1 - ball.z / 40); // 0..1
-  const size = 3 + Math.floor(closeness * 2);
-  const alpha = 0.35 + closeness * 0.4;
-  ctx.fillStyle = `rgba(255,100,100,${alpha})`;
-  ctx.fillRect(mx - size, my, size * 2 + 1, 1);
-  ctx.fillRect(mx, my - size, 1, size * 2 + 1);
+  ctx.fillStyle = 'rgba(255,100,100,0.35)';
+  ctx.fillRect(mx - 3, my, 7, 1);
+  ctx.fillRect(mx, my - 3, 1, 7);
   ctx.fillRect(mx - 2, my - 1, 5, 3);
   ctx.fillRect(mx - 1, my - 2, 3, 5);
-}
-
-// ============================================================
-// BOUNCE EFFECT — expanding ring + fading floor mark
-// ============================================================
-
-function spawnBounceFx(x, y, side) {
-  bounceFx.push({
-    x: Math.floor(x + 3), // ball is 6px wide, center
-    y: Math.floor(y + 3),
-    age: 0,
-    maxAge: 0.55,
-    side,
-  });
-}
-
-function drawBounceFx(ctx) {
-  for (const fx of bounceFx) {
-    const t = fx.age / fx.maxAge; // 0..1
-    const ring = Math.floor(2 + t * 12); // expand 2 → 14px
-    const alpha = (1 - t) * 0.7;
-
-    // Outer expanding ring (white/yellow flash)
-    ctx.fillStyle = `rgba(255, 240, 120, ${alpha * 0.9})`;
-    // Top + bottom lines of the ring
-    ctx.fillRect(fx.x - ring, fx.y, ring * 2 + 1, 1);
-    ctx.fillRect(fx.x, fx.y - Math.floor(ring * 0.5), 1, Math.floor(ring) + 1);
-    ctx.fillRect(fx.x, fx.y + Math.floor(ring * 0.5) - 1, 1, 2);
-    // Side dots (elliptical)
-    const half = Math.floor(ring * 0.7);
-    ctx.fillRect(fx.x - half - 1, fx.y - 1, 2, 2);
-    ctx.fillRect(fx.x + half, fx.y - 1, 2, 2);
-
-    // Persistent floor mark (faint, lasts whole effect) — shows WHERE the bounce was
-    const markAlpha = (1 - t) * 0.35;
-    ctx.fillStyle = `rgba(255,255,255,${markAlpha})`;
-    ctx.fillRect(fx.x - 1, fx.y - 1, 3, 3);
-
-    // Inner bright flash for first 30% of effect
-    if (t < 0.3) {
-      const flashA = (1 - t / 0.3) * 0.9;
-      ctx.fillStyle = `rgba(255,255,255,${flashA})`;
-      ctx.fillRect(fx.x - 2, fx.y - 1, 5, 3);
-      ctx.fillRect(fx.x - 1, fx.y - 2, 3, 5);
-    }
-  }
 }
 
 // ============================================================
@@ -3507,38 +2790,29 @@ function drawBounceFx(ctx) {
 // ============================================================
 
 function getShotPreview(player) {
-  const isSmashKey = isDown(KEYS.POWER_SMASH);
-  const power = chargeTime / MAX_CHARGE;
-  if (isSmashKey) return power > 0.5 ? 'POWER SMASH!' : 'SMASH';
   const pcy = player.y + PLAYER.HEIGHT / 2;
-  const isTap = chargeTime <= SOFT_THRESHOLD;
-  if (isTap) {
-    if (pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15) return 'DINK';
-    if (pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40) return 'DROP';
+  const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
+  const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
+  const isHold = chargeTime > SOFT_THRESHOLD;
+  const isLob = isHold && isDown(KEYS.DOWN);
+
+  if (isLob) return 'LOB';
+  if (!isHold) {
+    if (inKitchen) return 'DINK';
+    if (atBaseline) return 'DROP';
     return 'RESET';
+  } else {
+    const power = chargeTime / MAX_CHARGE;
+    if (inKitchen && power > 0.5) return power > 0.7 ? 'SMASH!' : 'SPEED-UP';
+    return power > 0.7 ? 'POWER DRIVE!' : 'DRIVE';
   }
-  return power > 0.6 ? 'POWER DRIVE!' : 'DRIVE';
 }
 
-function executePlayerShot(player, gameCtx, shotKey = 'space', fromBuffer = false) {
+function executePlayerShot(player, gameCtx) {
   const pcx = player.x + PLAYER.WIDTH / 2;
   const pcy = player.y + PLAYER.HEIGHT / 2;
-
-  // Hit radius — slightly larger on touch (less precise input)
-  const hitRadius = isTouchDevice() ? 40 : 32;
-  const dist = Math.sqrt(Math.pow(pcx - ball.x - 3, 2) + Math.pow(pcy - ball.y - 3, 2));
-  if (dist >= hitRadius) {
-    // Out of range — only arm buffer on the *initial* press, never from a drain attempt
-    // (otherwise the buffer keeps re-arming itself and auto-fires when ball enters range)
-    if (!fromBuffer) {
-      shotBuffer = 0.15;
-      shotBufferKey = shotKey;
-    }
-    return;
-  }
-  // Consume buffer on success
-  shotBuffer = 0;
-  shotBufferKey = null;
+  const dist = Math.sqrt(Math.pow(pcx - ball.x, 2) + Math.pow(pcy - ball.y, 2));
+  if (dist >= 42) return;
 
   // Double-bounce check
   const nextRally = rules.rallyCount + 1;
@@ -3547,54 +2821,41 @@ function executePlayerShot(player, gameCtx, shotKey = 'space', fromBuffer = fals
     return;
   }
 
-  // Kitchen volley check
-  const kitchenCheck = checkKitchenVolley('player', pcy, rules.bounceCount.player);
-  if (kitchenCheck.fault) {
-    showFeedback('KITCHEN FAULT!');
-    triggerFault(kitchenCheck.reason, 'player', gameCtx);
-    return;
-  }
-
   const hitResult = onBallHit(rules, 'player');
   if (hitResult.fault) { triggerFault(hitResult.reason, 'player', gameCtx); return; }
 
+  // Determine shot type
   const inKitchen = pcy <= COURT.NET_Y + COURT.KITCHEN_DEPTH + 15;
   const atBaseline = pcy > COURT.NET_Y + COURT.KITCHEN_DEPTH + 40;
-  const power = Math.min(chargeTime / MAX_CHARGE, 1.0);
   const isTap = chargeTime <= SOFT_THRESHOLD;
+  const isLob = !isTap && isDown(KEYS.DOWN);
+  const power = Math.min(chargeTime / MAX_CHARGE, 1.0);
 
-  let flightTime, arcMult, label, safeNet;
+  let flightTime, arcMult, label;
 
-  if (shotKey === 'lob') {
-    // D = LOB: high arc, deep, safe net clearance
-    flightTime = 1.5; arcMult = 2.5; label = 'LOB'; safeNet = true;
-
-  } else if (shotKey === 'smash') {
-    // S = SMASH: very flat, very fast, distinct from drive
-    flightTime = 0.28; arcMult = 1.0; label = 'SMASH!'; safeNet = false;
-    if (power > 0.5) {
-      flightTime = 0.22;
-      label = 'POWER SMASH!';
-    }
-    smashShakeTimer = 0.18;
-
+  if (isLob) {
+    // LOB — hold + DOWN
+    flightTime = 1.6; arcMult = 2.5; label = 'LOB';
   } else if (isTap) {
-    // SPACE TAP = soft shot by position, safe net
+    // TAP = soft shot by position
     if (inKitchen) {
-      flightTime = 0.8; arcMult = 1.0; label = 'DINK'; safeNet = true;
+      flightTime = 0.7; arcMult = 1.0; label = 'DINK';
     } else if (atBaseline) {
-      flightTime = 0.9; arcMult = 1.3; label = 'DROP'; safeNet = true;
+      flightTime = 0.8; arcMult = 1.3; label = 'DROP';
     } else {
-      flightTime = 0.85; arcMult = 1.0; label = 'RESET'; safeNet = true;
+      flightTime = 0.75; arcMult = 1.0; label = 'RESET';
     }
-
   } else {
-    // SPACE HOLD = DRIVE: fast, slightly risky net
-    flightTime = 0.7; arcMult = 1.0; label = 'DRIVE'; safeNet = false;
-    if (power > 0.6) {
-      flightTime = 0.55;
+    // HOLD = DRIVE from any position. Power scales with hold time.
+    // Near net + high power = SMASH (put-away)
+    flightTime = 0.8; arcMult = 1.0; label = 'DRIVE';
+    if (inKitchen && power > 0.5) {
+      label = power > 0.7 ? 'SMASH!' : 'SPEED-UP';
+    } else if (power > 0.7) {
       label = 'POWER DRIVE!';
     }
+    // Power reduces flight time (faster shot)
+    flightTime /= (1.0 + power * 0.6);
   }
 
   // Forehand / Backhand
@@ -3606,35 +2867,33 @@ function executePlayerShot(player, gameCtx, shotKey = 'space', fromBuffer = fals
     player.swingSide = 'backhand';
   }
 
-  // Target: crosshair X for horizontal, Y depends on shot type
-  // Spread reduced — was causing too many out-of-bounds shots
-  let targetX = aimTarget.x + (Math.random() - 0.5) * 6;
+  // Target: use crosshair X for horizontal aim, but Y depends on shot type
+  let targetX = aimTarget.x + (Math.random() - 0.5) * 15;
   let targetY;
 
-  if (shotKey === 'lob') {
-    targetY = COURT.Y + 25 + Math.random() * 15;          // deep but with margin from baseline
-  } else if (shotKey === 'smash') {
-    // Smash aims MID-COURT for safety
-    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH - 25 + Math.random() * 30;
+  if (isLob) {
+    // Lob → deep baseline
+    targetY = COURT.Y + 10 + Math.random() * 20;
   } else if (isTap) {
-    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH + 5 + Math.random() * (COURT.KITCHEN_DEPTH - 8);
+    // Soft shots (dink/drop/reset) → always target kitchen area
+    targetY = COURT.NET_Y - COURT.KITCHEN_DEPTH + 5 + Math.random() * (COURT.KITCHEN_DEPTH - 5);
   } else {
-    targetY = aimTarget.y + (Math.random() - 0.5) * 6;   // drive: follow crosshair tightly
+    // Hard shots (drive/smash/volley) → use crosshair Y (deep by default)
+    targetY = aimTarget.y + (Math.random() - 0.5) * 15;
   }
 
-  // Generous in-bounds margin so RNG/physics jitter doesn't push shots out
-  targetX = clamp(targetX, COURT.X + 22, COURT.X + COURT.WIDTH - 22);
-  targetY = clamp(targetY, COURT.Y + 22, COURT.NET_Y - 8);
+  targetX = clamp(targetX, COURT.X + 10, COURT.X + COURT.WIDTH - 10);
+  targetY = clamp(targetY, COURT.Y + 5, COURT.NET_Y - 5);
 
   showFeedback(label);
-  hitBall(ball, targetX, targetY, flightTime, arcMult, safeNet);
+  hitBall(ball, targetX, targetY, flightTime, arcMult);
   ball.lastHitBy = 'player';
   rallyCount++;
 
   player.animState = player.swingSide || 'forehand';
   player.animFrame = 0;
   playerSwingTimer = 0.25;
-  playSFX(shotKey === 'smash' ? 'smash' : 'hit');
+  playSFX('hit');
 }
 
 // ============================================================
@@ -3663,6 +2922,10 @@ function drawPowerBar(ctx, player) {
 
   if (fill > 0.7) drawText(ctx, 'MAX!', barX + barW + 3, py - 1, PALETTE.RED, 1);
 
+  // Show LOB indicator if holding DOWN
+  if (isDown(KEYS.DOWN)) {
+    drawText(ctx, 'LOB', barX + barW + 3, py - 1, PALETTE.LIGHT_BLUE, 1);
+  }
 }
 
 function showFeedback(text) { lastShotFeedback = text; feedbackTimer = 0.6; }
@@ -3714,26 +2977,13 @@ function performPlayerServe(player, power = 1.0) {
   const serveX = player.x + PLAYER.WIDTH / 2;
   const serveY = player.y;
   const serveSide = getServeSide(currentScore, rules.serving);
-
-  // Power 1.0 (tap) → soft, short serve just past kitchen line
-  // Power 1.5 (full hold) → fast, deep serve at baseline
-  const t = clamp((power - 1.0) / 0.5, 0, 1); // 0..1
-  const shortDepth = COURT.NET_Y - COURT.KITCHEN_DEPTH - 12; // just past kitchen
-  const deepDepth = COURT.Y + 25;                            // baseline area
-  const targetY = shortDepth - (shortDepth - deepDepth) * t + (Math.random() - 0.5) * 10;
-
-  // Service-box X (cross-court, narrower spread on soft serves)
-  const xSpread = 0.2 + 0.15 * t; // tap=0.2, hold=0.35
   const targetX = serveSide === 'right'
-    ? COURT.X + COURT.WIDTH * 0.12 + Math.random() * (COURT.WIDTH * xSpread)
-    : COURT.X + COURT.WIDTH * (0.88 - xSpread) + Math.random() * (COURT.WIDTH * xSpread);
+    ? COURT.X + COURT.WIDTH * 0.1 + Math.random() * (COURT.WIDTH * 0.3)
+    : COURT.X + COURT.WIDTH * 0.6 + Math.random() * (COURT.WIDTH * 0.3);
+  const targetY = COURT.Y + 20 + Math.random() * (COURT.NET_Y - COURT.KITCHEN_DEPTH - COURT.Y - 30);
 
-  // Flight time: soft tap is slow & arcing, full hold is fast & flat
-  const flightTime = 1.2 - t * 0.5; // 1.2s → 0.7s
-
-  serveBall(ball, serveX, serveY, targetX, targetY, 'player', flightTime);
-  if (power >= 1.4) showFeedback('POWER SERVE!');
-  else if (power <= 1.05) showFeedback('SOFT SERVE');
+  serveBall(ball, serveX, serveY, targetX, targetY);
+  if (power > 1.3) showFeedback('POWER SERVE!');
   onServe(rules); rallyCount = 0; playSFX('serve');
 }
 
@@ -3748,14 +2998,6 @@ function performAIServe(opponent) {
 // SCORING
 // ============================================================
 
-// Emotional point messages
-const WINNER_MSGS = ['NICE!', 'GREAT SHOT!', 'BEAUTIFUL!', 'INCREDIBLE!', 'ON FIRE!', 'UNSTOPPABLE!', 'WHAT A PLAY!'];
-const LOSER_MSGS = ['OUCH!', 'SO CLOSE!', 'TOUGH BREAK!', 'UNLUCKY!', 'SHAKE IT OFF!'];
-const SIDE_OUT_MSGS = ['SIDE OUT!', 'YOUR SERVE!', 'CHANGE OF SERVE!', 'SWITCH!'];
-const EPIC_RALLY = ['EPIC RALLY!', 'WHAT A BATTLE!', 'INCREDIBLE POINT!'];
-
-function getEmotionalMsg(msgs) { return msgs[Math.floor(Math.random() * msgs.length)]; }
-
 function triggerFault(reason, against, gameCtx) {
   rules.lastFault = against;
   rules.lastFaultReason = reason;
@@ -3766,28 +3008,13 @@ function triggerFault(reason, against, gameCtx) {
   scorePoint(gameCtx.score, rules, pointWinner);
 
   if (pointWinner === wasServing) {
-    // Server scored — emotional message + outcome-specific SFX
-    if (pointWinner === 'player') {
-      faultDisplay = getEmotionalMsg(WINNER_MSGS);
-      playSFX('scoreWin');
-    } else {
-      faultDisplay = getEmotionalMsg(LOSER_MSGS);
-      playSFX('scoreLose');
-    }
+    faultDisplay = reason; playSFX('point');
   } else {
-    // Side out — neutral, but flag if YOU lost the serve
-    faultDisplay = getEmotionalMsg(SIDE_OUT_MSGS);
-    playSFX(pointWinner === 'player' ? 'scoreWin' : 'sideOut');
+    faultDisplay = 'SIDE OUT'; playSFX('fault');
   }
   faultTimer = 1.5;
 
-  if (rallyCount > 8) {
-    lastShotFeedback = `${rallyCount} SHOTS! ${getEmotionalMsg(EPIC_RALLY)}`;
-    feedbackTimer = 2.5;
-  } else if (rallyCount > 5) {
-    lastShotFeedback = `${rallyCount} SHOT RALLY!`;
-    feedbackTimer = 2;
-  }
+  if (rallyCount > 5) { lastShotFeedback = `${rallyCount} SHOT RALLY!`; feedbackTimer = 2; }
 
   const gameWinner = checkGameOver(gameCtx.score);
   if (gameWinner) { pendingGameEnd = { winner: gameWinner }; faultTimer = 1.0; }
@@ -3800,9 +3027,6 @@ function resetForPoint(gameCtx) {
   servePrompt = true; servePositioned = false; serveDelayTimer = 0;
   rallyCount = 0; isCharging = false; chargeTime = 0;
   playerSwingTimer = 0; aiSwingTimer = 0;
-  smashShakeTimer = 0; shotBuffer = 0; shotBufferKey = null;
-  aimStickyTimer = 0;
-  bounceFx = [];
 
   // Position both players at baseline on correct side for next serve
   const nextServeSide = getServeSide(gameCtx.score, gameCtx.score.serving);
@@ -3847,18 +3071,18 @@ const PointEnd = {
 // ============================================================
 
 
-let gameEndTimer = 0;
-let gameEndWinner = null;
+let timer = 0;
+let winner = null;
 
 const GameEnd = {
   enter(gameCtx) {
-    gameEndTimer = 0;
-    gameEndWinner = gameCtx.gameWinner;
-    if (!gameEndWinner) return;
+    timer = 0;
+    winner = gameCtx.gameWinner;
+    if (!winner) return;
     gameCtx.gameWinner = null; // clear to prevent double-count on re-entry
 
     // Record game win
-    if (gameEndWinner === 'player') {
+    if (winner === 'player') {
       gameCtx.score.games[0]++;
       playSFX('win');
     } else {
@@ -3868,8 +3092,8 @@ const GameEnd = {
   },
 
   update(dt, gameCtx) {
-    gameEndTimer += dt;
-    if (gameEndTimer < 1) return; // show for at least 1 second
+    timer += dt;
+    if (timer < 1) return; // show for at least 1 second
 
     if (isPressed('Enter') || isPressed(' ')) {
       // Check match over
@@ -3889,7 +3113,7 @@ const GameEnd = {
   render(ctx, gameCtx) {
     clearScreen(ctx, PALETTE.BLACK);
 
-    const isPlayer = gameEndWinner === 'player';
+    const isPlayer = winner === 'player';
 
     drawTextCentered(ctx, 'GAME OVER', INTERNAL_WIDTH / 2, 60, PALETTE.YELLOW, 3);
 
@@ -3908,7 +3132,7 @@ const GameEnd = {
     drawTextCentered(ctx, `BEST OF ${SCORING.BEST_OF}`,
       INTERNAL_WIDTH / 2, 190, PALETTE.GRAY, 1);
 
-    if (gameEndTimer > 1) {
+    if (timer > 1) {
       drawTextCentered(ctx, 'PRESS ENTER TO CONTINUE', INTERNAL_WIDTH / 2, 230, PALETTE.YELLOW, 1);
     }
   },
@@ -3920,15 +3144,15 @@ const GameEnd = {
 // ============================================================
 
 
-const MATCHEND_MENU = ['REMATCH', 'MAIN MENU'];
-let matchEndSel = 0;
-let matchEndTimer = 0;
+const MENU_ITEMS = ['REMATCH', 'MAIN MENU'];
+let selectedIndex = 0;
+let timer = 0;
 let matchWinnerLocal = null;
 
 const MatchEnd = {
   enter(gameCtx) {
-    matchEndSel = 0;
-    matchEndTimer = 0;
+    selectedIndex = 0;
+    timer = 0;
     matchWinnerLocal = gameCtx.matchWinner;
     gameCtx.matchWinner = null; // clear to prevent stale state
     if (matchWinnerLocal === 'player') {
@@ -3937,14 +3161,14 @@ const MatchEnd = {
   },
 
   update(dt, gameCtx) {
-    matchEndTimer += dt;
+    timer += dt;
 
-    if (isPressed('ArrowDown')) { matchEndSel = (matchEndSel + 1) % MATCHEND_MENU.length; playSFX('menuMove'); }
-    if (isPressed('ArrowUp'))   { matchEndSel = (matchEndSel - 1 + MATCHEND_MENU.length) % MATCHEND_MENU.length; playSFX('menuMove'); }
+    if (isPressed('ArrowDown')) { selectedIndex = (selectedIndex + 1) % MENU_ITEMS.length; playSFX('menuMove'); }
+    if (isPressed('ArrowUp'))   { selectedIndex = (selectedIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length; playSFX('menuMove'); }
 
     if (isPressed('Enter') || isPressed(' ')) {
       playSFX('menuSelect');
-      if (matchEndSel === 0) {
+      if (selectedIndex === 0) {
         // Rematch — reset everything
         gameCtx.score.player = 0;
         gameCtx.score.opponent = 0;
@@ -3978,7 +3202,7 @@ const MatchEnd = {
       INTERNAL_WIDTH / 2, 155, PALETTE.LIGHT_GRAY, 1);
 
     // Menu
-    drawMenu(ctx, MATCHEND_MENU, matchEndSel, INTERNAL_WIDTH / 2 - 40, 190, PALETTE.WHITE, PALETTE.YELLOW, 1);
+    drawMenu(ctx, MENU_ITEMS, selectedIndex, INTERNAL_WIDTH / 2 - 40, 190, PALETTE.WHITE, PALETTE.YELLOW, 1);
 
     drawTextCentered(ctx, 'PRESS ENTER TO SELECT', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
@@ -3998,54 +3222,33 @@ const HowToPlay = {
     clearScreen(ctx, PALETTE.DARK_BLUE);
     drawTextCentered(ctx, 'HOW TO PLAY', INTERNAL_WIDTH / 2, 15, PALETTE.YELLOW, 2);
 
-    const x = 40; let y = 45; const lh = 11;
+    const x = 40; let y = 50; const lh = 12;
 
-    drawText(ctx, 'CONTROLS:', x, y, PALETTE.ORANGE, 1);                y += lh + 2;
-    if (isTouchDevice()) {
-      drawText(ctx, '  JOYSTICK    - MOVE + AIM', x, y, PALETTE.WHITE, 1);           y += lh;
-      drawText(ctx, '  SHOT TAP    - SOFT SHOT', x, y, PALETTE.WHITE, 1);            y += lh;
-      drawText(ctx, '  SHOT HOLD   - DRIVE (POWER BAR)', x, y, PALETTE.WHITE, 1);    y += lh;
-      drawText(ctx, '  SMASH TAP   - SMASH', x, y, PALETTE.YELLOW, 1);              y += lh;
-      drawText(ctx, '  SMASH HOLD  - POWER SMASH', x, y, PALETTE.YELLOW, 1);        y += lh;
-      drawText(ctx, '  LOB         - LOB', x, y, PALETTE.WHITE, 1);                 y += lh + 4;
-    } else {
-      drawText(ctx, '  ARROWS  - MOVE + AIM CROSSHAIR', x, y, PALETTE.WHITE, 1);     y += lh;
-      drawText(ctx, '  SPACE TAP   - SOFT SHOT', x, y, PALETTE.WHITE, 1);            y += lh;
-      drawText(ctx, '  SPACE HOLD  - DRIVE (POWER BAR)', x, y, PALETTE.WHITE, 1);    y += lh;
-      drawText(ctx, '  S TAP       - SMASH', x, y, PALETTE.YELLOW, 1);               y += lh;
-      drawText(ctx, '  S HOLD      - POWER SMASH', x, y, PALETTE.YELLOW, 1);         y += lh;
-      drawText(ctx, '  D           - LOB', x, y, PALETTE.WHITE, 1);                  y += lh + 4;
-    }
+    drawText(ctx, 'ONE BUTTON CONTROLS:', x, y, PALETTE.ORANGE, 1);      y += lh + 2;
+    drawText(ctx, '  ARROWS - MOVE + AIM', x, y, PALETTE.WHITE, 1);      y += lh;
+    drawText(ctx, '  SPACE TAP - SOFT SHOT', x, y, PALETTE.WHITE, 1);    y += lh;
+    drawText(ctx, '  SPACE HOLD - HARD SHOT', x, y, PALETTE.WHITE, 1);   y += lh;
+    drawText(ctx, '  HOLD + DOWN - LOB', x, y, PALETTE.WHITE, 1);        y += lh + 4;
 
-    drawText(ctx, 'SOFT SHOTS BY POSITION:', x, y, PALETTE.ORANGE, 1);  y += lh + 2;
-    drawText(ctx, '  AT KITCHEN  - DINK (SOFT, OVER NET)', x, y, PALETTE.LIGHT_BLUE, 1);  y += lh;
-    drawText(ctx, '  MID COURT   - RESET (NEUTRAL)', x, y, PALETTE.LIGHT_BLUE, 1);        y += lh;
-    drawText(ctx, '  BASELINE    - DROP (ARC TO KITCHEN)', x, y, PALETTE.LIGHT_BLUE, 1);  y += lh + 4;
+    drawText(ctx, 'SHOTS BY POSITION:', x, y, PALETTE.ORANGE, 1);        y += lh + 2;
+    drawText(ctx, '  AT KITCHEN: TAP=DINK  HOLD=SMASH', x, y, PALETTE.LIGHT_BLUE, 1); y += lh;
+    drawText(ctx, '  MID COURT:  TAP=RESET HOLD=VOLLEY', x, y, PALETTE.LIGHT_BLUE, 1); y += lh;
+    drawText(ctx, '  BASELINE:   TAP=DROP  HOLD=DRIVE', x, y, PALETTE.LIGHT_BLUE, 1); y += lh + 4;
 
-    drawText(ctx, 'AIMING:', x, y, PALETTE.ORANGE, 1);                  y += lh + 2;
-    drawText(ctx, '  CROSSHAIR SHOWS WHERE BALL GOES', x, y, PALETTE.WHITE, 1);    y += lh;
-    if (isTouchDevice()) {
-      drawText(ctx, '  JOYSTICK MOVES CROSSHAIR', x, y, PALETTE.WHITE, 1);         y += lh + 4;
-    } else {
-      drawText(ctx, '  ARROWS MOVE CROSSHAIR ON COURT', x, y, PALETTE.WHITE, 1);   y += lh + 4;
-    }
+    drawText(ctx, 'AIMING:', x, y, PALETTE.ORANGE, 1);                   y += lh + 2;
+    drawText(ctx, '  CROSSHAIR SHOWS WHERE BALL GOES', x, y, PALETTE.WHITE, 1); y += lh;
+    drawText(ctx, '  ARROWS MOVE CROSSHAIR ON COURT', x, y, PALETTE.WHITE, 1); y += lh + 4;
 
-    drawText(ctx, 'SERVE:', x, y, PALETTE.ORANGE, 1);                   y += lh + 2;
-    if (isTouchDevice()) {
-      drawText(ctx, '  TAP SHOT    - QUICK SERVE', x, y, PALETTE.WHITE, 1);        y += lh;
-      drawText(ctx, '  HOLD SHOT   - POWER SERVE', x, y, PALETTE.WHITE, 1);        y += lh + 4;
-    } else {
-      drawText(ctx, '  TAP SPACE   - QUICK SERVE', x, y, PALETTE.WHITE, 1);        y += lh;
-      drawText(ctx, '  HOLD SPACE  - POWER SERVE', x, y, PALETTE.WHITE, 1);        y += lh + 4;
-    }
+    drawText(ctx, 'SERVE:', x, y, PALETTE.ORANGE, 1);                    y += lh + 2;
+    drawText(ctx, '  TAP SPACE = QUICK SERVE', x, y, PALETTE.WHITE, 1);  y += lh;
+    drawText(ctx, '  HOLD SPACE = POWER SERVE', x, y, PALETTE.WHITE, 1); y += lh + 4;
 
-    drawText(ctx, 'RULES:', x, y, PALETTE.ORANGE, 1);                   y += lh + 2;
-    drawText(ctx, '  FIRST 2 HITS MUST BOUNCE', x, y, PALETTE.YELLOW, 1);          y += lh;
-    drawText(ctx, '  NO VOLLEY IN KITCHEN (NVZ)', x, y, PALETTE.YELLOW, 1);        y += lh;
-    drawText(ctx, '  ONLY SERVER SCORES POINTS', x, y, PALETTE.YELLOW, 1);         y += lh;
+    drawText(ctx, 'RULES:', x, y, PALETTE.ORANGE, 1);                    y += lh + 2;
+    drawText(ctx, '  FIRST 2 HITS MUST BOUNCE', x, y, PALETTE.YELLOW, 1); y += lh;
+    drawText(ctx, '  ONLY SERVER SCORES POINTS', x, y, PALETTE.YELLOW, 1); y += lh;
     drawText(ctx, '  PLAY TO 11, WIN BY 2', x, y, PALETTE.WHITE, 1);
 
-    drawTextCentered(ctx, isTouchDevice() ? 'TAP PAUSE TO GO BACK' : 'PRESS ESC TO GO BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 14, PALETTE.GRAY, 1);
+    drawTextCentered(ctx, 'PRESS ESC TO GO BACK', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 14, PALETTE.GRAY, 1);
   },
 };
 
@@ -4103,12 +3306,12 @@ const Settings = {
 // ============================================================
 
 
-const PAUSE_MENU = ['RESUME', 'MAIN MENU'];
-let pauseSel = 0;
+const MENU_ITEMS = ['RESUME', 'MAIN MENU'];
+let selectedIndex = 0;
 
 const Paused = {
   enter(gameCtx) {
-    pauseSel = 0;
+    selectedIndex = 0;
   },
 
   update(dt, gameCtx) {
@@ -4117,12 +3320,12 @@ const Paused = {
       return;
     }
 
-    if (isPressed('ArrowDown')) { pauseSel = (pauseSel + 1) % PAUSE_MENU.length; playSFX('menuMove'); }
-    if (isPressed('ArrowUp'))   { pauseSel = (pauseSel - 1 + PAUSE_MENU.length) % PAUSE_MENU.length; playSFX('menuMove'); }
+    if (isPressed('ArrowDown')) { selectedIndex = (selectedIndex + 1) % MENU_ITEMS.length; playSFX('menuMove'); }
+    if (isPressed('ArrowUp'))   { selectedIndex = (selectedIndex - 1 + MENU_ITEMS.length) % MENU_ITEMS.length; playSFX('menuMove'); }
 
     if (isPressed('Enter') || isPressed(' ')) {
       playSFX('menuSelect');
-      if (pauseSel === 0) {
+      if (selectedIndex === 0) {
         gameCtx.stateMachine.transition(GameState.GAMEPLAY);
       } else {
         gameCtx.score.player = 0;
@@ -4140,7 +3343,7 @@ const Paused = {
 
     drawTextCentered(ctx, 'PAUSED', INTERNAL_WIDTH / 2, 50, PALETTE.YELLOW, 3);
 
-    drawMenu(ctx, PAUSE_MENU, pauseSel, INTERNAL_WIDTH / 2 - 40, 90, PALETTE.WHITE, PALETTE.YELLOW, 1);
+    drawMenu(ctx, MENU_ITEMS, selectedIndex, INTERNAL_WIDTH / 2 - 40, 90, PALETTE.WHITE, PALETTE.YELLOW, 1);
 
     drawTextCentered(ctx, 'ESC TO RESUME', INTERNAL_WIDTH / 2, INTERNAL_HEIGHT - 10, PALETTE.GRAY, 1);
   },
@@ -4212,20 +3415,15 @@ const ctx = canvas.getContext('2d');
 canvas.width = INTERNAL_WIDTH;
 canvas.height = INTERNAL_HEIGHT;
 
-const isMobile = isTouchDevice();
-
 function resize() {
   const scale = Math.min(
     window.innerWidth / INTERNAL_WIDTH,
     window.innerHeight / INTERNAL_HEIGHT
   );
-  // Mobile: fractional scaling to use full screen (CSS pixelated handles interpolation)
-  // Desktop: integer scaling for pixel-perfect rendering
-  const finalScale = isMobile
-    ? Math.max(1, scale * 0.95)
-    : Math.max(1, Math.floor(scale));
-  canvas.style.width = (INTERNAL_WIDTH * finalScale) + 'px';
-  canvas.style.height = (INTERNAL_HEIGHT * finalScale) + 'px';
+  // Use integer scaling for crisp pixels
+  const intScale = Math.max(1, Math.floor(scale));
+  canvas.style.width = (INTERNAL_WIDTH * intScale) + 'px';
+  canvas.style.height = (INTERNAL_HEIGHT * intScale) + 'px';
 }
 window.addEventListener('resize', resize);
 resize();
@@ -4233,7 +3431,6 @@ resize();
 ctx.imageSmoothingEnabled = false;
 
 initInput();
-initTouch();
 
 const gameCtx = createGame();
 let accumulator = 0;
